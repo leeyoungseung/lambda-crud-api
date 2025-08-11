@@ -1,0 +1,355 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'API Gateway configuration for Lambda CRUD API'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'dev'
+    AllowedValues: ['dev', 'staging', 'prod']
+    Description: 'Environment name for resource naming'
+  
+  CreateLambdaFunctionArn:
+    Type: String
+    Description: 'ARN of the Create Lambda function'
+  
+  ReadLambdaFunctionArn:
+    Type: String
+    Description: 'ARN of the Read Lambda function'
+  
+  UpdateLambdaFunctionArn:
+    Type: String
+    Description: 'ARN of the Update Lambda function'
+  
+  DeleteLambdaFunctionArn:
+    Type: String
+    Description: 'ARN of the Delete Lambda function'
+  
+  StageName:
+    Type: String
+    Default: 'v1'
+    Description: 'API Gateway stage name'
+
+Resources:
+  # API Gateway REST API
+  CrudApiGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub 'crud-api-${Environment}'
+      Description: 'REST API for Lambda CRUD operations'
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      Policy:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: 'execute-api:Invoke'
+            Resource: '*'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: 'lambda-crud-api'
+        - Key: Component
+          Value: 'api-gateway'
+
+  # API Gateway Resources
+  ItemsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref CrudApiGateway
+      ParentId: !GetAtt CrudApiGateway.RootResourceId
+      PathPart: 'items'
+
+  ItemResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref CrudApiGateway
+      ParentId: !Ref ItemsResource
+      PathPart: '{id}'
+
+  # CORS Options Method for /items
+  ItemsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref CrudApiGateway
+      ResourceId: !Ref ItemsResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+
+  # CORS Options Method for /items/{id}
+  ItemOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref CrudApiGateway
+      ResourceId: !Ref ItemResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+
+  # POST /items (Create)
+  CreateItemMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref CrudApiGateway
+      ResourceId: !Ref ItemsResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CreateLambdaFunctionArn}/invocations'
+      MethodResponses:
+        - StatusCode: '200'
+        - StatusCode: '400'
+        - StatusCode: '500'
+
+  # GET /items (Read All)
+  ReadAllItemsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref CrudApiGateway
+      ResourceId: !Ref ItemsResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunctionArn}/invocations'
+      MethodResponses:
+        - StatusCode: '200'
+        - StatusCode: '500'
+
+  # GET /items/{id} (Read Single)
+  ReadItemMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref CrudApiGateway
+      ResourceId: !Ref ItemResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunctionArn}/invocations'
+      MethodResponses:
+        - StatusCode: '200'
+        - StatusCode: '404'
+        - StatusCode: '500'
+
+  # PUT /items/{id} (Update)
+  UpdateItemMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref CrudApiGateway
+      ResourceId: !Ref ItemResource
+      HttpMethod: PUT
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UpdateLambdaFunctionArn}/invocations'
+      MethodResponses:
+        - StatusCode: '200'
+        - StatusCode: '400'
+        - StatusCode: '404'
+        - StatusCode: '500'
+
+  # DELETE /items/{id} (Delete)
+  DeleteItemMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref CrudApiGateway
+      ResourceId: !Ref ItemResource
+      HttpMethod: DELETE
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DeleteLambdaFunctionArn}/invocations'
+      MethodResponses:
+        - StatusCode: '200'
+        - StatusCode: '404'
+        - StatusCode: '500'
+
+  # Lambda Permissions for API Gateway
+  CreateLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CreateLambdaFunctionArn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${CrudApiGateway}/*/*'
+
+  ReadLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ReadLambdaFunctionArn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${CrudApiGateway}/*/*'
+
+  UpdateLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref UpdateLambdaFunctionArn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${CrudApiGateway}/*/*'
+
+  DeleteLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DeleteLambdaFunctionArn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${CrudApiGateway}/*/*'
+
+  # API Gateway Deployment
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - CreateItemMethod
+      - ReadAllItemsMethod
+      - ReadItemMethod
+      - UpdateItemMethod
+      - DeleteItemMethod
+      - ItemsOptionsMethod
+      - ItemOptionsMethod
+    Properties:
+      RestApiId: !Ref CrudApiGateway
+      StageName: !Ref StageName
+      StageDescription: !Sub 'Deployment for ${Environment} environment'
+
+  # API Gateway Stage
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref CrudApiGateway
+      DeploymentId: !Ref ApiDeployment
+      StageName: !Ref StageName
+      Description: !Sub 'Stage for ${Environment} environment'
+      Variables:
+        environment: !Ref Environment
+      MethodSettings:
+        - ResourcePath: '/*'
+          HttpMethod: '*'
+          LoggingLevel: INFO
+          DataTraceEnabled: true
+          MetricsEnabled: true
+          ThrottlingBurstLimit: 5000
+          ThrottlingRateLimit: 2000
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: 'lambda-crud-api'
+        - Key: Component
+          Value: 'api-gateway-stage'
+
+  # CloudWatch Log Group for API Gateway
+  ApiGatewayLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/apigateway/crud-api-${Environment}'
+      RetentionInDays: 14
+
+  # API Gateway Account (for CloudWatch logging)
+  ApiGatewayAccount:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchRole.Arn
+
+  # IAM Role for API Gateway CloudWatch logging
+  ApiGatewayCloudWatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: 'lambda-crud-api'
+        - Key: Component
+          Value: 'iam'
+
+Outputs:
+  ApiGatewayId:
+    Description: 'ID of the API Gateway'
+    Value: !Ref CrudApiGateway
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiGatewayId'
+
+  ApiGatewayRootResourceId:
+    Description: 'Root resource ID of the API Gateway'
+    Value: !GetAtt CrudApiGateway.RootResourceId
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiGatewayRootResourceId'
+
+  ApiGatewayUrl:
+    Description: 'URL of the API Gateway'
+    Value: !Sub 'https://${CrudApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${StageName}'
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiGatewayUrl'
+
+  ItemsResourceId:
+    Description: 'Resource ID for /items endpoint'
+    Value: !Ref ItemsResource
+    Export:
+      Name: !Sub '${AWS::StackName}-ItemsResourceId'
+
+  ItemResourceId:
+    Description: 'Resource ID for /items/{id} endpoint'
+    Value: !Ref ItemResource
+    Export:
+      Name: !Sub '${AWS::StackName}-ItemResourceId'
+
+  ApiStageName:
+    Description: 'API Gateway stage name'
+    Value: !Ref StageName
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiStageName'

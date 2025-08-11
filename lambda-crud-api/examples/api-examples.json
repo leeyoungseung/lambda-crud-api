@@ -1,0 +1,537 @@
+{
+  "api_examples": {
+    "base_url": "https://your-api-id.execute-api.ap-northeast-1.amazonaws.com/v1",
+    "examples": {
+      "create_item": {
+        "description": "Create a new item with all supported JSON data types",
+        "method": "POST",
+        "endpoint": "/items",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "request_body": {
+          "name": "Premium Wireless Headphones",
+          "description": "High-quality wireless headphones with active noise cancellation and premium sound quality",
+          "price": 299.99,
+          "quantity": 50,
+          "is_active": true,
+          "tags": ["electronics", "audio", "wireless", "premium", "noise-cancelling"],
+          "metadata": {
+            "category": "electronics",
+            "subcategory": "audio",
+            "brand": "TechBrand",
+            "model": "WH-1000XM5",
+            "weight_grams": 250,
+            "dimensions": {
+              "length_mm": 254,
+              "width_mm": 220,
+              "height_mm": 102
+            },
+            "features": [
+              "active-noise-cancellation",
+              "bluetooth-5.2",
+              "30-hour-battery",
+              "quick-charge",
+              "multipoint-connection"
+            ],
+            "specifications": {
+              "driver_size_mm": 40,
+              "frequency_response": "4Hz-40kHz",
+              "impedance_ohms": 47,
+              "sensitivity_db": 104.5,
+              "wireless_range_meters": 10
+            },
+            "colors_available": ["black", "silver", "blue"],
+            "warranty_months": 24,
+            "certifications": ["FCC", "CE", "RoHS"],
+            "sustainability": {
+              "recyclable_packaging": true,
+              "energy_efficient": true,
+              "carbon_neutral_shipping": false
+            }
+          }
+        },
+        "expected_response": {
+          "success": true,
+          "data": {
+            "id": "item-abc123def456",
+            "name": "Premium Wireless Headphones",
+            "description": "High-quality wireless headphones with active noise cancellation and premium sound quality",
+            "price": 299.99,
+            "quantity": 50,
+            "is_active": true,
+            "tags": ["electronics", "audio", "wireless", "premium", "noise-cancelling"],
+            "metadata": {
+              "category": "electronics",
+              "brand": "TechBrand",
+              "weight_grams": 250
+            },
+            "created_at": "2024-01-15T10:30:00Z",
+            "updated_at": "2024-01-15T10:30:00Z"
+          },
+          "message": "Item 'item-abc123def456' created successfully",
+          "timestamp": "2024-01-15T10:30:00Z"
+        }
+      },
+      "create_minimal_item": {
+        "description": "Create item with only required fields",
+        "method": "POST",
+        "endpoint": "/items",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "request_body": {
+          "name": "Simple Item",
+          "price": 19.99,
+          "quantity": 100,
+          "is_active": true
+        },
+        "expected_response": {
+          "success": true,
+          "data": {
+            "id": "item-simple123",
+            "name": "Simple Item",
+            "description": null,
+            "price": 19.99,
+            "quantity": 100,
+            "is_active": true,
+            "tags": null,
+            "metadata": null,
+            "created_at": "2024-01-15T10:35:00Z",
+            "updated_at": "2024-01-15T10:35:00Z"
+          },
+          "message": "Item 'item-simple123' created successfully",
+          "timestamp": "2024-01-15T10:35:00Z"
+        }
+      },
+      "get_all_items": {
+        "description": "Retrieve all items without filters",
+        "method": "GET",
+        "endpoint": "/items",
+        "expected_response": {
+          "success": true,
+          "data": {
+            "items": [
+              {
+                "id": "item-abc123def456",
+                "name": "Premium Wireless Headphones",
+                "description": "High-quality wireless headphones with active noise cancellation",
+                "price": 299.99,
+                "quantity": 50,
+                "is_active": true,
+                "tags": ["electronics", "audio", "wireless"],
+                "metadata": {
+                  "category": "electronics",
+                  "brand": "TechBrand"
+                },
+                "created_at": "2024-01-15T10:30:00Z",
+                "updated_at": "2024-01-15T10:30:00Z"
+              },
+              {
+                "id": "item-simple123",
+                "name": "Simple Item",
+                "description": null,
+                "price": 19.99,
+                "quantity": 100,
+                "is_active": true,
+                "tags": null,
+                "metadata": null,
+                "created_at": "2024-01-15T10:35:00Z",
+                "updated_at": "2024-01-15T10:35:00Z"
+              }
+            ],
+            "count": 2,
+            "total": 2
+          },
+          "message": "Retrieved 2 items successfully",
+          "timestamp": "2024-01-15T10:40:00Z"
+        }
+      },
+      "get_items_with_filters": {
+        "description": "Retrieve items with query filters",
+        "method": "GET",
+        "endpoint": "/items?is_active=true&min_price=50.00&tag=electronics",
+        "expected_response": {
+          "success": true,
+          "data": {
+            "items": [
+              {
+                "id": "item-abc123def456",
+                "name": "Premium Wireless Headphones",
+                "price": 299.99,
+                "quantity": 50,
+                "is_active": true,
+                "tags": ["electronics", "audio", "wireless"],
+                "created_at": "2024-01-15T10:30:00Z",
+                "updated_at": "2024-01-15T10:30:00Z"
+              }
+            ],
+            "count": 1,
+            "total": 2
+          },
+          "message": "Retrieved 1 items successfully",
+          "timestamp": "2024-01-15T10:45:00Z"
+        }
+      },
+      "get_single_item": {
+        "description": "Retrieve a specific item by ID",
+        "method": "GET",
+        "endpoint": "/items/item-abc123def456",
+        "expected_response": {
+          "success": true,
+          "data": {
+            "id": "item-abc123def456",
+            "name": "Premium Wireless Headphones",
+            "description": "High-quality wireless headphones with active noise cancellation and premium sound quality",
+            "price": 299.99,
+            "quantity": 50,
+            "is_active": true,
+            "tags": ["electronics", "audio", "wireless", "premium", "noise-cancelling"],
+            "metadata": {
+              "category": "electronics",
+              "subcategory": "audio",
+              "brand": "TechBrand",
+              "model": "WH-1000XM5",
+              "weight_grams": 250,
+              "dimensions": {
+                "length_mm": 254,
+                "width_mm": 220,
+                "height_mm": 102
+              },
+              "features": [
+                "active-noise-cancellation",
+                "bluetooth-5.2",
+                "30-hour-battery"
+              ]
+            },
+            "created_at": "2024-01-15T10:30:00Z",
+            "updated_at": "2024-01-15T10:30:00Z"
+          },
+          "message": "Item 'item-abc123def456' retrieved successfully",
+          "timestamp": "2024-01-15T10:50:00Z"
+        }
+      },
+      "update_item_partial": {
+        "description": "Partially update an existing item",
+        "method": "PUT",
+        "endpoint": "/items/item-abc123def456",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "request_body": {
+          "name": "Premium Wireless Headphones - Updated",
+          "price": 279.99,
+          "description": "Updated description with new features and improved battery life"
+        },
+        "expected_response": {
+          "success": true,
+          "data": {
+            "id": "item-abc123def456",
+            "name": "Premium Wireless Headphones - Updated",
+            "description": "Updated description with new features and improved battery life",
+            "price": 279.99,
+            "quantity": 50,
+            "is_active": true,
+            "tags": ["electronics", "audio", "wireless", "premium", "noise-cancelling"],
+            "metadata": {
+              "category": "electronics",
+              "brand": "TechBrand"
+            },
+            "created_at": "2024-01-15T10:30:00Z",
+            "updated_at": "2024-01-15T11:00:00Z"
+          },
+          "message": "Item 'item-abc123def456' updated successfully",
+          "timestamp": "2024-01-15T11:00:00Z"
+        }
+      },
+      "update_item_complete": {
+        "description": "Complete update of an existing item",
+        "method": "PUT",
+        "endpoint": "/items/item-simple123",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "request_body": {
+          "name": "Completely Updated Item",
+          "description": "This item has been completely updated with new information",
+          "price": 49.99,
+          "quantity": 75,
+          "is_active": false,
+          "tags": ["updated", "modified", "new-category"],
+          "metadata": {
+            "category": "updated-category",
+            "update_reason": "inventory-adjustment",
+            "updated_by": "admin",
+            "notes": "Complete overhaul of item information"
+          }
+        },
+        "expected_response": {
+          "success": true,
+          "data": {
+            "id": "item-simple123",
+            "name": "Completely Updated Item",
+            "description": "This item has been completely updated with new information",
+            "price": 49.99,
+            "quantity": 75,
+            "is_active": false,
+            "tags": ["updated", "modified", "new-category"],
+            "metadata": {
+              "category": "updated-category",
+              "update_reason": "inventory-adjustment",
+              "updated_by": "admin",
+              "notes": "Complete overhaul of item information"
+            },
+            "created_at": "2024-01-15T10:35:00Z",
+            "updated_at": "2024-01-15T11:10:00Z"
+          },
+          "message": "Item 'item-simple123' updated successfully",
+          "timestamp": "2024-01-15T11:10:00Z"
+        }
+      },
+      "delete_item": {
+        "description": "Delete an existing item",
+        "method": "DELETE",
+        "endpoint": "/items/item-simple123",
+        "expected_response": {
+          "success": true,
+          "data": {
+            "id": "item-simple123",
+            "deleted": true,
+            "deleted_item": {
+              "id": "item-simple123",
+              "name": "Completely Updated Item",
+              "description": "This item has been completely updated with new information",
+              "price": 49.99,
+              "quantity": 75,
+              "is_active": false,
+              "tags": ["updated", "modified", "new-category"],
+              "metadata": {
+                "category": "updated-category",
+                "update_reason": "inventory-adjustment"
+              },
+              "created_at": "2024-01-15T10:35:00Z",
+              "updated_at": "2024-01-15T11:10:00Z"
+            }
+          },
+          "message": "Item 'item-simple123' deleted successfully",
+          "timestamp": "2024-01-15T11:20:00Z"
+        }
+      }
+    },
+    "error_examples": {
+      "validation_error": {
+        "description": "Example of validation error response",
+        "method": "POST",
+        "endpoint": "/items",
+        "request_body": {
+          "name": "",
+          "price": -10.00,
+          "quantity": "not-a-number",
+          "is_active": "not-a-boolean",
+          "tags": "not-an-array"
+        },
+        "expected_response": {
+          "success": false,
+          "error": {
+            "code": "VALIDATION_ERROR",
+            "message": "Validation failed",
+            "details": [
+              {
+                "field": "name",
+                "message": "Field 'name' must be at least 1 characters"
+              },
+              {
+                "field": "price",
+                "message": "Field 'price' must be at least 0.01"
+              },
+              {
+                "field": "quantity",
+                "message": "Field 'quantity' must be an integer"
+              },
+              {
+                "field": "is_active",
+                "message": "Field 'is_active' must be a boolean"
+              },
+              {
+                "field": "tags",
+                "message": "Field 'tags' must be an array"
+              }
+            ]
+          },
+          "timestamp": "2024-01-15T11:25:00Z"
+        }
+      },
+      "not_found_error": {
+        "description": "Example of not found error response",
+        "method": "GET",
+        "endpoint": "/items/non-existent-item-id",
+        "expected_response": {
+          "success": false,
+          "error": {
+            "code": "NOT_FOUND",
+            "message": "Item with id 'non-existent-item-id' not found"
+          },
+          "timestamp": "2024-01-15T11:30:00Z"
+        }
+      },
+      "bad_request_error": {
+        "description": "Example of bad request error response",
+        "method": "POST",
+        "endpoint": "/items",
+        "request_body": "invalid-json-format",
+        "expected_response": {
+          "success": false,
+          "error": {
+            "code": "BAD_REQUEST",
+            "message": "Invalid JSON format: Expecting value: line 1 column 1 (char 0)"
+          },
+          "timestamp": "2024-01-15T11:35:00Z"
+        }
+      },
+      "invalid_id_format": {
+        "description": "Example of invalid ID format error",
+        "method": "GET",
+        "endpoint": "/items/invalid@id!format",
+        "expected_response": {
+          "success": false,
+          "error": {
+            "code": "BAD_REQUEST",
+            "message": "Invalid item ID format",
+            "details": [
+              {
+                "field": "id",
+                "message": "Item ID can only contain letters, numbers, hyphens, and underscores"
+              }
+            ]
+          },
+          "timestamp": "2024-01-15T11:40:00Z"
+        }
+      }
+    },
+    "edge_cases": {
+      "maximum_values": {
+        "description": "Item with maximum allowed values",
+        "method": "POST",
+        "endpoint": "/items",
+        "request_body": {
+          "id": "a".repeat(50),
+          "name": "A".repeat(100),
+          "description": "D".repeat(500),
+          "price": 999999.99,
+          "quantity": 999999,
+          "is_active": true,
+          "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10"],
+          "metadata": {
+            "large_object": {
+              "key1": "value1",
+              "key2": "value2",
+              "nested": {
+                "deep": {
+                  "very_deep": "value"
+                }
+              }
+            }
+          }
+        }
+      },
+      "minimum_values": {
+        "description": "Item with minimum allowed values",
+        "method": "POST",
+        "endpoint": "/items",
+        "request_body": {
+          "id": "a",
+          "name": "A",
+          "price": 0.01,
+          "quantity": 0,
+          "is_active": false,
+          "tags": [],
+          "metadata": {}
+        }
+      },
+      "unicode_and_special_characters": {
+        "description": "Item with Unicode and special characters",
+        "method": "POST",
+        "endpoint": "/items",
+        "request_body": {
+          "name": "Héllo Wörld! 你好世界 🌍",
+          "description": "Item with émojis 🚀 and spëcial çharacters",
+          "price": 99.99,
+          "quantity": 10,
+          "is_active": true,
+          "tags": ["unicode", "émojis", "spëcial"],
+          "metadata": {
+            "unicode_text": "Héllo Wörld! 你好世界 🌍",
+            "special_chars": "!@#$%^&*()_+-=[]{}|;:,.<>?",
+            "quotes": "He said \"Hello\" and she replied 'Hi!'",
+            "newlines_and_tabs": "Line 1\nLine 2\tTabbed"
+          }
+        }
+      },
+      "null_optional_fields": {
+        "description": "Item with null values for optional fields",
+        "method": "POST",
+        "endpoint": "/items",
+        "request_body": {
+          "name": "Item with Nulls",
+          "description": null,
+          "price": 25.00,
+          "quantity": 5,
+          "is_active": true,
+          "tags": null,
+          "metadata": null
+        }
+      },
+      "complex_nested_metadata": {
+        "description": "Item with deeply nested metadata",
+        "method": "POST",
+        "endpoint": "/items",
+        "request_body": {
+          "name": "Complex Nested Item",
+          "price": 150.00,
+          "quantity": 20,
+          "is_active": true,
+          "metadata": {
+            "level1": {
+              "level2": {
+                "level3": {
+                  "level4": {
+                    "level5": {
+                      "deep_value": "Found me!",
+                      "deep_array": [1, 2, 3, {"nested_in_array": true}],
+                      "deep_number": 42.42,
+                      "deep_boolean": false,
+                      "deep_null": null
+                    }
+                  }
+                }
+              }
+            },
+            "mixed_types": {
+              "string": "text",
+              "number": 123.45,
+              "integer": 789,
+              "boolean": true,
+              "null_value": null,
+              "array": [1, "two", 3.0, true, null],
+              "object": {
+                "nested_string": "nested",
+                "nested_number": 456
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "curl_commands": {
+    "create_item": "curl -X POST https://your-api-id.execute-api.ap-northeast-1.amazonaws.com/v1/items -H 'Content-Type: application/json' -d '{\"name\":\"Test Item\",\"price\":99.99,\"quantity\":10,\"is_active\":true}'",
+    "get_all_items": "curl https://your-api-id.execute-api.ap-northeast-1.amazonaws.com/v1/items",
+    "get_item_by_id": "curl https://your-api-id.execute-api.ap-northeast-1.amazonaws.com/v1/items/item-id",
+    "update_item": "curl -X PUT https://your-api-id.execute-api.ap-northeast-1.amazonaws.com/v1/items/item-id -H 'Content-Type: application/json' -d '{\"name\":\"Updated Item\",\"price\":149.99}'",
+    "delete_item": "curl -X DELETE https://your-api-id.execute-api.ap-northeast-1.amazonaws.com/v1/items/item-id",
+    "filter_active_items": "curl 'https://your-api-id.execute-api.ap-northeast-1.amazonaws.com/v1/items?is_active=true'",
+    "filter_by_price_range": "curl 'https://your-api-id.execute-api.ap-northeast-1.amazonaws.com/v1/items?min_price=50.00&max_price=200.00'",
+    "filter_by_tag": "curl 'https://your-api-id.execute-api.ap-northeast-1.amazonaws.com/v1/items?tag=electronics'",
+    "combined_filters": "curl 'https://your-api-id.execute-api.ap-northeast-1.amazonaws.com/v1/items?is_active=true&min_price=100.00&tag=electronics'"
+  }
+}

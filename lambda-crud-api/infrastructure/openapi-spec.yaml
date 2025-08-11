@@ -1,0 +1,669 @@
+openapi: 3.0.3
+info:
+  title: Lambda CRUD API
+  description: |
+    A serverless CRUD API built with AWS Lambda, API Gateway, and DynamoDB.
+    
+    This API provides complete Create, Read, Update, and Delete operations for managing items.
+    All data is validated and stored in DynamoDB with comprehensive error handling.
+    
+    ## Features
+    - Independent Lambda functions for each CRUD operation
+    - Comprehensive JSON data validation
+    - Support for all JSON data types (string, number, boolean, array, object, null)
+    - Standardized error responses
+    - CORS support for web applications
+    
+    ## Data Model
+    Items support the following fields:
+    - **id**: Unique identifier (auto-generated if not provided)
+    - **name**: Item name (required)
+    - **description**: Item description (optional)
+    - **price**: Item price (required, must be positive)
+    - **quantity**: Item quantity (required, must be non-negative)
+    - **is_active**: Active status (required boolean)
+    - **tags**: Array of string tags (optional)
+    - **metadata**: Object for additional data (optional)
+    - **created_at**: Creation timestamp (auto-generated)
+    - **updated_at**: Last update timestamp (auto-updated)
+  version: 1.0.0
+  contact:
+    name: Lambda CRUD API Support
+    email: support@example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.example.com/v1
+    description: Production server
+  - url: https://staging-api.example.com/v1
+    description: Staging server
+  - url: https://dev-api.example.com/v1
+    description: Development server
+
+paths:
+  /items:
+    get:
+      summary: Get all items
+      description: |
+        Retrieve all items from the database. Supports optional query parameters for filtering.
+      operationId: getAllItems
+      tags:
+        - Items
+      parameters:
+        - name: is_active
+          in: query
+          description: Filter by active status
+          required: false
+          schema:
+            type: string
+            enum: [true, false]
+        - name: min_price
+          in: query
+          description: Minimum price filter
+          required: false
+          schema:
+            type: number
+            minimum: 0
+        - name: max_price
+          in: query
+          description: Maximum price filter
+          required: false
+          schema:
+            type: number
+            minimum: 0
+        - name: tag
+          in: query
+          description: Filter by tag
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully retrieved items
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemListResponse'
+              examples:
+                success:
+                  summary: Successful response with items
+                  value:
+                    success: true
+                    data:
+                      items:
+                        - id: "item-123"
+                          name: "Sample Item"
+                          description: "A sample item"
+                          price: 99.99
+                          quantity: 10
+                          is_active: true
+                          tags: ["electronics", "gadget"]
+                          metadata:
+                            category: "electronics"
+                            weight: 1.5
+                          created_at: "2024-01-01T10:00:00Z"
+                          updated_at: "2024-01-01T10:00:00Z"
+                      count: 1
+                      total: 1
+                    message: "Retrieved 1 items successfully"
+                    timestamp: "2024-01-01T10:00:00Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create a new item
+      description: |
+        Create a new item in the database. The ID will be auto-generated if not provided.
+        All required fields must be present and valid.
+      operationId: createItem
+      tags:
+        - Items
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateItemRequest'
+            examples:
+              minimal:
+                summary: Minimal required fields
+                value:
+                  name: "New Item"
+                  price: 29.99
+                  quantity: 5
+                  is_active: true
+              complete:
+                summary: Complete item with all fields
+                value:
+                  name: "Complete Item"
+                  description: "A complete item with all fields"
+                  price: 199.99
+                  quantity: 25
+                  is_active: true
+                  tags: ["electronics", "premium"]
+                  metadata:
+                    category: "electronics"
+                    brand: "TechBrand"
+                    weight: 2.5
+                    features: ["wireless", "bluetooth"]
+      responses:
+        '201':
+          description: Item created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    options:
+      summary: CORS preflight
+      description: Handle CORS preflight requests
+      operationId: itemsOptions
+      tags:
+        - CORS
+      responses:
+        '200':
+          description: CORS preflight response
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+
+  /items/{id}:
+    get:
+      summary: Get item by ID
+      description: Retrieve a specific item by its unique identifier
+      operationId: getItemById
+      tags:
+        - Items
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique identifier of the item
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9\-_]+$'
+            maxLength: 50
+      responses:
+        '200':
+          description: Item retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update item by ID
+      description: |
+        Update an existing item. Only provided fields will be updated.
+        The ID and created_at timestamp cannot be changed.
+      operationId: updateItemById
+      tags:
+        - Items
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique identifier of the item to update
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9\-_]+$'
+            maxLength: 50
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateItemRequest'
+            examples:
+              partial:
+                summary: Partial update
+                value:
+                  name: "Updated Item Name"
+                  price: 149.99
+              complete:
+                summary: Complete update
+                value:
+                  name: "Completely Updated Item"
+                  description: "Updated description"
+                  price: 299.99
+                  quantity: 50
+                  is_active: false
+                  tags: ["updated", "modified"]
+                  metadata:
+                    category: "updated"
+                    last_modified_by: "admin"
+      responses:
+        '200':
+          description: Item updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete item by ID
+      description: Delete an existing item from the database
+      operationId: deleteItemById
+      tags:
+        - Items
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique identifier of the item to delete
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9\-_]+$'
+            maxLength: 50
+      responses:
+        '200':
+          description: Item deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    options:
+      summary: CORS preflight for item operations
+      description: Handle CORS preflight requests for item-specific operations
+      operationId: itemOptions
+      tags:
+        - CORS
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: CORS preflight response
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+
+components:
+  schemas:
+    Item:
+      type: object
+      required:
+        - id
+        - name
+        - price
+        - quantity
+        - is_active
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the item
+          pattern: '^[a-zA-Z0-9\-_]+$'
+          maxLength: 50
+          example: "item-123"
+        name:
+          type: string
+          description: Name of the item
+          minLength: 1
+          maxLength: 100
+          example: "Wireless Headphones"
+        description:
+          type: string
+          nullable: true
+          description: Optional description of the item
+          maxLength: 500
+          example: "High-quality wireless headphones with noise cancellation"
+        price:
+          type: number
+          description: Price of the item
+          minimum: 0.01
+          maximum: 999999.99
+          example: 199.99
+        quantity:
+          type: integer
+          description: Available quantity
+          minimum: 0
+          maximum: 999999
+          example: 25
+        is_active:
+          type: boolean
+          description: Whether the item is active
+          example: true
+        tags:
+          type: array
+          nullable: true
+          description: Array of tags for categorization
+          maxItems: 10
+          items:
+            type: string
+          example: ["electronics", "audio", "wireless"]
+        metadata:
+          type: object
+          nullable: true
+          description: Additional metadata as key-value pairs
+          example:
+            category: "electronics"
+            brand: "TechBrand"
+            weight: 1.5
+            features: ["noise-cancellation", "wireless"]
+        created_at:
+          type: string
+          format: date-time
+          description: ISO timestamp when the item was created
+          example: "2024-01-01T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO timestamp when the item was last updated
+          example: "2024-01-01T10:00:00Z"
+
+    CreateItemRequest:
+      type: object
+      required:
+        - name
+        - price
+        - quantity
+        - is_active
+      properties:
+        id:
+          type: string
+          description: Optional custom ID (will be auto-generated if not provided)
+          pattern: '^[a-zA-Z0-9\-_]+$'
+          maxLength: 50
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          nullable: true
+          maxLength: 500
+        price:
+          type: number
+          minimum: 0.01
+          maximum: 999999.99
+        quantity:
+          type: integer
+          minimum: 0
+          maximum: 999999
+        is_active:
+          type: boolean
+        tags:
+          type: array
+          nullable: true
+          maxItems: 10
+          items:
+            type: string
+        metadata:
+          type: object
+          nullable: true
+
+    UpdateItemRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          nullable: true
+          maxLength: 500
+        price:
+          type: number
+          minimum: 0.01
+          maximum: 999999.99
+        quantity:
+          type: integer
+          minimum: 0
+          maximum: 999999
+        is_active:
+          type: boolean
+        tags:
+          type: array
+          nullable: true
+          maxItems: 10
+          items:
+            type: string
+        metadata:
+          type: object
+          nullable: true
+
+    ItemResponse:
+      type: object
+      required:
+        - success
+        - data
+        - message
+        - timestamp
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/Item'
+        message:
+          type: string
+          example: "Item retrieved successfully"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-01T10:00:00Z"
+
+    ItemListResponse:
+      type: object
+      required:
+        - success
+        - data
+        - message
+        - timestamp
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          required:
+            - items
+            - count
+            - total
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Item'
+            count:
+              type: integer
+              description: Number of items returned (after filtering)
+              example: 10
+            total:
+              type: integer
+              description: Total number of items in database
+              example: 25
+        message:
+          type: string
+          example: "Retrieved 10 items successfully"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-01T10:00:00Z"
+
+    DeleteResponse:
+      type: object
+      required:
+        - success
+        - data
+        - message
+        - timestamp
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          required:
+            - id
+            - deleted
+          properties:
+            id:
+              type: string
+              example: "item-123"
+            deleted:
+              type: boolean
+              example: true
+            deleted_item:
+              $ref: '#/components/schemas/Item'
+        message:
+          type: string
+          example: "Item 'item-123' deleted successfully"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-01T10:00:00Z"
+
+    ErrorResponse:
+      type: object
+      required:
+        - success
+        - error
+        - timestamp
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              example: "VALIDATION_ERROR"
+            message:
+              type: string
+              example: "Validation failed"
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                    example: "name"
+                  message:
+                    type: string
+                    example: "Field 'name' is required"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-01T10:00:00Z"
+
+  responses:
+    BadRequest:
+      description: Bad request - validation error or malformed request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            validation_error:
+              summary: Validation error
+              value:
+                success: false
+                error:
+                  code: "VALIDATION_ERROR"
+                  message: "Validation failed"
+                  details:
+                    - field: "name"
+                      message: "Field 'name' is required"
+                    - field: "price"
+                      message: "Field 'price' must be a positive number"
+                timestamp: "2024-01-01T10:00:00Z"
+            invalid_json:
+              summary: Invalid JSON format
+              value:
+                success: false
+                error:
+                  code: "BAD_REQUEST"
+                  message: "Invalid JSON format: Expecting ',' delimiter"
+                timestamp: "2024-01-01T10:00:00Z"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: "NOT_FOUND"
+              message: "Item with id 'item-123' not found"
+            timestamp: "2024-01-01T10:00:00Z"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: "INTERNAL_SERVER_ERROR"
+              message: "An unexpected error occurred"
+            timestamp: "2024-01-01T10:00:00Z"
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication (if implemented)
+
+tags:
+  - name: Items
+    description: Operations for managing items
+  - name: CORS
+    description: CORS preflight operations

@@ -1,0 +1,599 @@
+# Lambda CRUD API Deployment Guide
+
+This guide provides step-by-step instructions for deploying the Lambda CRUD API to AWS.
+
+## Table of Contents
+
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [Deployment Methods](#deployment-methods)
+- [Environment Configuration](#environment-configuration)
+- [Testing](#testing)
+- [Monitoring](#monitoring)
+- [Troubleshooting](#troubleshooting)
+
+## Prerequisites
+
+### Required Tools
+
+1. **AWS CLI** (version 2.0 or later)
+   ```bash
+   # Install AWS CLI
+   curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+   unzip awscliv2.zip
+   sudo ./aws/install
+   
+   # Configure credentials
+   aws configure
+   ```
+
+2. **Python 3.12** (or compatible version)
+   ```bash
+   python3 --version  # Should be 3.9 or later
+   pip3 install -r requirements.txt
+   ```
+
+3. **Terraform** (if using Terraform deployment)
+   ```bash
+   # Install Terraform
+   wget https://releases.hashicorp.com/terraform/1.6.0/terraform_1.6.0_linux_amd64.zip
+   unzip terraform_1.6.0_linux_amd64.zip
+   sudo mv terraform /usr/local/bin/
+   ```
+
+### AWS Permissions
+
+Your AWS user/role needs the following permissions:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "lambda:*",
+        "apigateway:*",
+        "dynamodb:*",
+        "iam:*",
+        "logs:*",
+        "cloudformation:*"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+## Quick Start
+
+### 1. Clone and Setup
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd lambda-crud-api
+
+# Install dependencies
+pip3 install -r requirements.txt
+```
+
+### 2. Deploy with Automated Script
+
+```bash
+# Make deployment script executable
+chmod +x scripts/deploy.sh
+
+# Deploy to development environment
+./scripts/deploy.sh
+
+# Deploy to production
+./scripts/deploy.sh -e prod -r ap-northeast-1
+```
+
+### 3. Test the API
+
+```bash
+# Get the API URL from deployment output
+API_URL="https://your-api-id.execute-api.us-east-1.amazonaws.com/v1"
+
+# Test create item
+curl -X POST $API_URL/items \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Test Item",
+    "price": 99.99,
+    "quantity": 10,
+    "is_active": true
+  }'
+
+# Test get all items
+curl $API_URL/items
+```
+
+## Deployment Methods
+
+### Method 1: Automated Script (Recommended)
+
+The automated deployment script handles everything:
+
+```bash
+# Full deployment with all options
+./scripts/deploy.sh \
+  --environment prod \
+  --region ap-northeast-1 \
+  --method terraform
+
+# Deploy only Lambda functions (infrastructure exists)
+./scripts/deploy.sh --skip-infrastructure
+
+# Deploy specific function only
+./scripts/deploy.sh --function create
+```
+
+**Script Options:**
+- `-e, --environment`: Target environment (dev, staging, prod)
+- `-r, --region`: AWS region
+- `-m, --method`: Deployment method (terraform, cloudformation)
+- `-f, --function`: Deploy specific function only
+- `--skip-tests`: Skip running tests
+- `--skip-infrastructure`: Skip infrastructure deployment
+
+### Method 2: Terraform
+
+```bash
+cd infrastructure/terraform
+
+# Initialize Terraform
+terraform init
+
+# Create terraform.tfvars
+cat > terraform.tfvars << EOF
+environment = "prod"
+aws_region = "ap-northeast-1"
+table_name = "crud-api-items"
+lambda_runtime = "python3.12"
+EOF
+
+# Plan and apply
+terraform plan -var-file=terraform.tfvars
+terraform apply -var-file=terraform.tfvars
+
+# Deploy Lambda functions
+cd ../../
+python3 scripts/deploy.py --environment prod --region ap-northeast-1
+```
+
+### Method 3: CloudFormation
+
+```bash
+# Deploy infrastructure
+aws cloudformation create-stack \
+  --stack-name lambda-crud-api-prod \
+  --template-body file://infrastructure/cloudformation-template.yaml \
+  --parameters ParameterKey=Environment,ParameterValue=prod \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --region ap-northeast-1
+
+# Wait for completion
+aws cloudformation wait stack-create-complete \
+  --stack-name lambda-crud-api-prod \
+  --region ap-northeast-1
+
+# Deploy API Gateway
+aws cloudformation create-stack \
+  --stack-name lambda-crud-api-gateway-prod \
+  --template-body file://infrastructure/api-gateway-cloudformation.yaml \
+  --parameters \
+    ParameterKey=Environment,ParameterValue=prod \
+    ParameterKey=CreateLambdaFunctionArn,ParameterValue=<CREATE_LAMBDA_ARN> \
+    ParameterKey=ReadLambdaFunctionArn,ParameterValue=<READ_LAMBDA_ARN> \
+    ParameterKey=UpdateLambdaFunctionArn,ParameterValue=<UPDATE_LAMBDA_ARN> \
+    ParameterKey=DeleteLambdaFunctionArn,ParameterValue=<DELETE_LAMBDA_ARN> \
+  --capabilities CAPABILITY_IAM \
+  --region ap-northeast-1
+
+# Deploy Lambda functions
+python3 scripts/deploy.py --environment prod --region ap-northeast-1
+```
+
+### Method 4: Manual Python Script
+
+```bash
+# Deploy Lambda functions only (infrastructure must exist)
+python3 scripts/deploy.py \
+  --environment prod \
+  --region ap-northeast-1 \
+  --function create
+
+# Deploy all functions with tests
+python3 scripts/deploy.py \
+  --environment prod \
+  --region ap-northeast-1
+```
+
+## Environment Configuration
+
+### Development Environment
+
+```bash
+# Deploy to dev (default)
+./scripts/deploy.sh
+
+# Or explicitly
+./scripts/deploy.sh --environment dev --region ap-northeast-1
+```
+
+**Dev Environment Features:**
+- Shorter log retention (7 days)
+- Lower reserved concurrency
+- Relaxed monitoring
+
+### Staging Environment
+
+```bash
+./scripts/deploy.sh --environment staging --region ap-northeast-1
+```
+
+**Staging Environment Features:**
+- Production-like configuration
+- Extended log retention (30 days)
+- Enhanced monitoring
+- Performance testing enabled
+
+### Production Environment
+
+```bash
+./scripts/deploy.sh --environment prod --region ap-northeast-1
+```
+
+**Production Environment Features:**
+- High availability configuration
+- Extended log retention (90 days)
+- Maximum reserved concurrency
+- Comprehensive monitoring and alerting
+- Point-in-time recovery enabled
+
+### Multi-Region Deployment
+
+```bash
+# Deploy to multiple regions
+for region in ap-northeast-1 us-east-1 eu-west-1; do
+  ./scripts/deploy.sh --environment prod --region $region
+done
+```
+
+## Environment Variables
+
+### Lambda Function Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DYNAMODB_TABLE_NAME` | DynamoDB table name | `crud-api-items-{env}` |
+| `AWS_REGION` | AWS region | `us-east-1` |
+| `ENVIRONMENT` | Environment name | `dev` |
+
+### Deployment Script Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `AWS_DEFAULT_REGION` | Default AWS region | `ap-northeast-1` |
+| `AWS_PROFILE` | AWS profile to use | `default` |
+
+## Testing
+
+### Pre-Deployment Testing
+
+```bash
+# Run all tests
+python3 scripts/test.py --type all --verbose
+
+# Run specific test types
+python3 scripts/test.py --type unit --coverage
+python3 scripts/test.py --type integration
+python3 scripts/test.py --type performance
+
+# Run specific test file
+python3 scripts/test.py --file test_validation.py
+```
+
+### Post-Deployment Testing
+
+```bash
+# Test API endpoints
+API_URL="https://your-api-id.execute-api.region.amazonaws.com/v1"
+
+# Health check
+curl $API_URL/items
+
+# Create test item
+curl -X POST $API_URL/items \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Deployment Test Item",
+    "price": 1.00,
+    "quantity": 1,
+    "is_active": true
+  }'
+
+# Cleanup test item
+curl -X DELETE $API_URL/items/{item-id}
+```
+
+### Load Testing
+
+```bash
+# Install artillery for load testing
+npm install -g artillery
+
+# Create load test configuration
+cat > load-test.yml << EOF
+config:
+  target: 'https://your-api-id.execute-api.region.amazonaws.com/v1'
+  phases:
+    - duration: 60
+      arrivalRate: 10
+scenarios:
+  - name: "CRUD Operations"
+    flow:
+      - post:
+          url: "/items"
+          json:
+            name: "Load Test Item"
+            price: 99.99
+            quantity: 10
+            is_active: true
+      - get:
+          url: "/items"
+EOF
+
+# Run load test
+artillery run load-test.yml
+```
+
+## Monitoring
+
+### CloudWatch Metrics
+
+Key metrics to monitor:
+
+- **Lambda Function Metrics:**
+  - Duration
+  - Error count
+  - Throttles
+  - Concurrent executions
+
+- **API Gateway Metrics:**
+  - Request count
+  - Latency
+  - 4XX/5XX errors
+  - Cache hit/miss ratio
+
+- **DynamoDB Metrics:**
+  - Read/Write capacity utilization
+  - Throttled requests
+  - System errors
+
+### CloudWatch Alarms
+
+```bash
+# Create CloudWatch alarms
+aws cloudwatch put-metric-alarm \
+  --alarm-name "Lambda-CRUD-API-Errors" \
+  --alarm-description "Lambda function errors" \
+  --metric-name Errors \
+  --namespace AWS/Lambda \
+  --statistic Sum \
+  --period 300 \
+  --threshold 10 \
+  --comparison-operator GreaterThanThreshold \
+  --dimensions Name=FunctionName,Value=crud-api-create-prod \
+  --evaluation-periods 2
+```
+
+### Log Analysis
+
+```bash
+# View Lambda logs
+aws logs describe-log-groups --log-group-name-prefix "/aws/lambda/crud-api"
+
+# Stream logs in real-time
+aws logs tail /aws/lambda/crud-api-create-prod --follow
+
+# Query logs with CloudWatch Insights
+aws logs start-query \
+  --log-group-name "/aws/lambda/crud-api-create-prod" \
+  --start-time $(date -d '1 hour ago' +%s) \
+  --end-time $(date +%s) \
+  --query-string 'fields @timestamp, @message | filter @message like /ERROR/'
+```
+
+## Troubleshooting
+
+### Common Issues
+
+#### 1. Deployment Fails with Permission Errors
+
+**Problem:** AWS credentials don't have sufficient permissions
+
+**Solution:**
+```bash
+# Check current permissions
+aws sts get-caller-identity
+
+# Verify IAM policies
+aws iam list-attached-user-policies --user-name your-username
+```
+
+#### 2. Lambda Function Timeout
+
+**Problem:** Lambda functions timing out
+
+**Solution:**
+```bash
+# Increase timeout in Terraform
+# In terraform/variables.tf
+variable "lambda_timeout" {
+  default = 60  # Increase from 30
+}
+
+# Or in CloudFormation template
+Timeout: 60
+```
+
+#### 3. DynamoDB Throttling
+
+**Problem:** DynamoDB read/write capacity exceeded
+
+**Solution:**
+```bash
+# Check DynamoDB metrics
+aws dynamodb describe-table --table-name crud-api-items-prod
+
+# Enable auto-scaling (if using provisioned capacity)
+aws application-autoscaling register-scalable-target \
+  --service-namespace dynamodb \
+  --resource-id table/crud-api-items-prod \
+  --scalable-dimension dynamodb:table:WriteCapacityUnits \
+  --min-capacity 5 \
+  --max-capacity 100
+```
+
+#### 4. API Gateway CORS Issues
+
+**Problem:** CORS errors in web browsers
+
+**Solution:**
+- Verify OPTIONS methods are deployed
+- Check CORS headers in responses
+- Ensure preflight requests are handled
+
+#### 5. Cold Start Performance
+
+**Problem:** High latency on first requests
+
+**Solutions:**
+```bash
+# Enable provisioned concurrency
+aws lambda put-provisioned-concurrency-config \
+  --function-name crud-api-create-prod \
+  --qualifier '$LATEST' \
+  --provisioned-concurrency-units 10
+
+# Or use CloudWatch Events to warm functions
+aws events put-rule \
+  --name lambda-warmer \
+  --schedule-expression "rate(5 minutes)"
+```
+
+### Debug Commands
+
+```bash
+# Check Lambda function configuration
+aws lambda get-function --function-name crud-api-create-prod
+
+# Test Lambda function directly
+aws lambda invoke \
+  --function-name crud-api-create-prod \
+  --payload '{"httpMethod":"POST","body":"{\"name\":\"test\"}"}' \
+  response.json
+
+# Check API Gateway configuration
+aws apigateway get-rest-apis
+
+# Test API Gateway endpoint
+aws apigateway test-invoke-method \
+  --rest-api-id your-api-id \
+  --resource-id resource-id \
+  --http-method POST \
+  --body '{"name":"test","price":99.99,"quantity":1,"is_active":true}'
+```
+
+### Log Analysis Queries
+
+```bash
+# Find errors in Lambda logs
+aws logs filter-log-events \
+  --log-group-name "/aws/lambda/crud-api-create-prod" \
+  --filter-pattern "ERROR"
+
+# Find slow requests
+aws logs filter-log-events \
+  --log-group-name "/aws/lambda/crud-api-create-prod" \
+  --filter-pattern "[timestamp, requestId, level=ERROR]"
+
+# API Gateway access logs
+aws logs filter-log-events \
+  --log-group-name "/aws/apigateway/crud-api-prod" \
+  --filter-pattern "[timestamp, requestId, ip, user, timestamp, method, resource, protocol, status>=400]"
+```
+
+## Cleanup
+
+### Remove All Resources
+
+```bash
+# Using Terraform
+cd infrastructure/terraform
+terraform destroy -var-file=terraform.tfvars
+
+# Using CloudFormation
+aws cloudformation delete-stack --stack-name lambda-crud-api-gateway-prod
+aws cloudformation delete-stack --stack-name lambda-crud-api-prod
+
+# Wait for deletion
+aws cloudformation wait stack-delete-complete --stack-name lambda-crud-api-prod
+```
+
+### Remove Specific Environment
+
+```bash
+# Remove development environment
+./scripts/cleanup.sh --environment dev
+
+# Remove with confirmation
+./scripts/cleanup.sh --environment prod --confirm
+```
+
+## Best Practices
+
+### Security
+
+1. **Use least privilege IAM policies**
+2. **Enable encryption at rest and in transit**
+3. **Implement API authentication in production**
+4. **Regular security audits**
+5. **Monitor for suspicious activity**
+
+### Performance
+
+1. **Use provisioned concurrency for production**
+2. **Optimize Lambda memory allocation**
+3. **Implement connection pooling**
+4. **Use DynamoDB efficiently**
+5. **Monitor and optimize cold starts**
+
+### Cost Optimization
+
+1. **Use appropriate Lambda memory sizes**
+2. **Implement DynamoDB on-demand billing**
+3. **Set up CloudWatch log retention policies**
+4. **Monitor and optimize API Gateway usage**
+5. **Use reserved capacity for predictable workloads**
+
+### Reliability
+
+1. **Implement proper error handling**
+2. **Set up comprehensive monitoring**
+3. **Use multiple availability zones**
+4. **Implement circuit breakers**
+5. **Regular backup and disaster recovery testing**
+
+## Support
+
+For additional help:
+
+- Check the [API Documentation](API_DOCUMENTATION.md)
+- Review CloudWatch logs for detailed error information
+- Contact the development team
+- Submit issues to the project repository

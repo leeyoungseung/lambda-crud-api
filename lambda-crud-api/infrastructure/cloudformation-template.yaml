@@ -1,0 +1,286 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Lambda CRUD API Infrastructure - DynamoDB, Lambda Functions, and IAM Roles'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'dev'
+    AllowedValues: ['dev', 'staging', 'prod']
+    Description: 'Environment name for resource naming'
+  
+  TableName:
+    Type: String
+    Default: 'crud-api-items'
+    Description: 'DynamoDB table name for storing items'
+  
+  LambdaRuntime:
+    Type: String
+    Default: 'python3.12'
+    Description: 'Python runtime version for Lambda functions'
+
+Resources:
+  # DynamoDB Table
+  ItemsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${TableName}-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: 'lambda-crud-api'
+        - Key: Component
+          Value: 'database'
+
+  # IAM Role for Lambda Functions
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'lambda-crud-api-execution-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                Resource: !GetAtt ItemsTable.Arn
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/crud-api-*'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: 'lambda-crud-api'
+        - Key: Component
+          Value: 'iam'
+
+  # Lambda Function for Create Operation
+  CreateLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'crud-api-create-${Environment}'
+      Runtime: !Ref LambdaRuntime
+      Handler: create_handler.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          def lambda_handler(event, context):
+              return {
+                  'statusCode': 200,
+                  'body': 'Placeholder - Deploy actual code'
+              }
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref ItemsTable
+          AWS_REGION: !Ref AWS::Region
+          ENVIRONMENT: !Ref Environment
+      Timeout: 30
+      MemorySize: 256
+      ReservedConcurrencyLimit: 100
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: 'lambda-crud-api'
+        - Key: Component
+          Value: 'lambda'
+        - Key: Operation
+          Value: 'create'
+
+  # Lambda Function for Read Operation
+  ReadLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'crud-api-read-${Environment}'
+      Runtime: !Ref LambdaRuntime
+      Handler: read_handler.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          def lambda_handler(event, context):
+              return {
+                  'statusCode': 200,
+                  'body': 'Placeholder - Deploy actual code'
+              }
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref ItemsTable
+          AWS_REGION: !Ref AWS::Region
+          ENVIRONMENT: !Ref Environment
+      Timeout: 30
+      MemorySize: 256
+      ReservedConcurrencyLimit: 100
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: 'lambda-crud-api'
+        - Key: Component
+          Value: 'lambda'
+        - Key: Operation
+          Value: 'read'
+
+  # Lambda Function for Update Operation
+  UpdateLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'crud-api-update-${Environment}'
+      Runtime: !Ref LambdaRuntime
+      Handler: update_handler.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          def lambda_handler(event, context):
+              return {
+                  'statusCode': 200,
+                  'body': 'Placeholder - Deploy actual code'
+              }
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref ItemsTable
+          AWS_REGION: !Ref AWS::Region
+          ENVIRONMENT: !Ref Environment
+      Timeout: 30
+      MemorySize: 256
+      ReservedConcurrencyLimit: 100
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: 'lambda-crud-api'
+        - Key: Component
+          Value: 'lambda'
+        - Key: Operation
+          Value: 'update'
+
+  # Lambda Function for Delete Operation
+  DeleteLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'crud-api-delete-${Environment}'
+      Runtime: !Ref LambdaRuntime
+      Handler: delete_handler.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          def lambda_handler(event, context):
+              return {
+                  'statusCode': 200,
+                  'body': 'Placeholder - Deploy actual code'
+              }
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref ItemsTable
+          AWS_REGION: !Ref AWS::Region
+          ENVIRONMENT: !Ref Environment
+      Timeout: 30
+      MemorySize: 256
+      ReservedConcurrencyLimit: 100
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: 'lambda-crud-api'
+        - Key: Component
+          Value: 'lambda'
+        - Key: Operation
+          Value: 'delete'
+
+  # CloudWatch Log Groups for Lambda Functions
+  CreateLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/crud-api-create-${Environment}'
+      RetentionInDays: 14
+
+  ReadLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/crud-api-read-${Environment}'
+      RetentionInDays: 14
+
+  UpdateLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/crud-api-update-${Environment}'
+      RetentionInDays: 14
+
+  DeleteLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/crud-api-delete-${Environment}'
+      RetentionInDays: 14
+
+Outputs:
+  DynamoDBTableName:
+    Description: 'Name of the DynamoDB table'
+    Value: !Ref ItemsTable
+    Export:
+      Name: !Sub '${AWS::StackName}-DynamoDBTableName'
+
+  DynamoDBTableArn:
+    Description: 'ARN of the DynamoDB table'
+    Value: !GetAtt ItemsTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-DynamoDBTableArn'
+
+  LambdaExecutionRoleArn:
+    Description: 'ARN of the Lambda execution role'
+    Value: !GetAtt LambdaExecutionRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaExecutionRoleArn'
+
+  CreateLambdaFunctionArn:
+    Description: 'ARN of the Create Lambda function'
+    Value: !GetAtt CreateLambdaFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-CreateLambdaFunctionArn'
+
+  ReadLambdaFunctionArn:
+    Description: 'ARN of the Read Lambda function'
+    Value: !GetAtt ReadLambdaFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ReadLambdaFunctionArn'
+
+  UpdateLambdaFunctionArn:
+    Description: 'ARN of the Update Lambda function'
+    Value: !GetAtt UpdateLambdaFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-UpdateLambdaFunctionArn'
+
+  DeleteLambdaFunctionArn:
+    Description: 'ARN of the Delete Lambda function'
+    Value: !GetAtt DeleteLambdaFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-DeleteLambdaFunctionArn'
