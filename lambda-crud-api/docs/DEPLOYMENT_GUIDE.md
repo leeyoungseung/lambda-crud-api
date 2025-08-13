@@ -1,10 +1,11 @@
 # Lambda CRUD API Deployment Guide
 
-This guide provides step-by-step instructions for deploying the Lambda CRUD API to AWS. The guide assumes you have downloaded the source code from the GitHub repository.
+This guide provides step-by-step instructions for deploying the Lambda CRUD API to AWS in a remote environment using Python virtual environments. This ensures consistent and isolated dependency management.
 
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
+- [Environment Setup](#environment-setup)
 - [Quick Start](#quick-start)
 - [Deployment Methods](#deployment-methods)
 - [Environment Configuration](#environment-configuration)
@@ -14,17 +15,26 @@ This guide provides step-by-step instructions for deploying the Lambda CRUD API 
 
 ## Prerequisites
 
+### System Requirements
+
+- **Linux/macOS/WSL** (Remote environment compatible)
+- **Python 3.9+** (3.12 recommended)
+- **Git** (for source code management)
+- **Internet connection** (for downloading dependencies)
+
 ### Source Code
 
 First, download the source code from GitHub:
 
 **Method 1: Git Clone (Recommended)**
+
 ```bash
 git clone https://github.com/your-username/lambda-crud-api.git
 cd lambda-crud-api
 ```
 
 **Method 2: Download ZIP**
+
 1. Visit: `https://github.com/your-username/lambda-crud-api`
 2. Click "Code" → "Download ZIP"
 3. Extract and navigate to the directory
@@ -32,29 +42,92 @@ cd lambda-crud-api
 ### Required Tools
 
 1. **AWS CLI** (version 2.0 or later)
+
    ```bash
    # Install AWS CLI
    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
    unzip awscliv2.zip
    sudo ./aws/install
-   
+
    # Configure credentials
    aws configure
    ```
 
-2. **Python 3.12** (or compatible version)
-   ```bash
-   python3 --version  # Should be 3.9 or later
-   pip3 install -r requirements.txt
-   ```
-
-3. **Terraform** (if using Terraform deployment)
+2. **Terraform** (if using Terraform deployment)
    ```bash
    # Install Terraform
    wget https://releases.hashicorp.com/terraform/1.6.0/terraform_1.6.0_linux_amd64.zip
    unzip terraform_1.6.0_linux_amd64.zip
    sudo mv terraform /usr/local/bin/
    ```
+
+## Environment Setup
+
+### 1. Python Virtual Environment Setup
+
+**Create and activate virtual environment:**
+
+```bash
+# Navigate to project directory
+cd lambda-crud-api
+
+# Create virtual environment
+python3 -m venv venv
+
+# Activate virtual environment
+# On Linux/macOS:
+source venv/bin/activate
+
+# On Windows (if using WSL):
+source venv/bin/activate
+
+# Verify virtual environment is active (should show venv path)
+which python
+```
+
+### 2. Install Dependencies
+
+```bash
+# Ensure virtual environment is activated
+source venv/bin/activate
+
+# Upgrade pip to latest version
+pip install --upgrade pip
+
+# Install project dependencies
+pip install -r requirements.txt
+
+# Verify installations
+python -c "import boto3; print('boto3 version:', boto3.__version__)"
+python -c "import pytest; print('pytest installed successfully')"
+```
+
+### 3. Environment Verification
+
+```bash
+# Check Python version (should be 3.9+)
+python --version
+
+# Check installed packages
+pip list
+
+# Verify AWS CLI
+aws --version
+
+# Verify Terraform (if using)
+terraform --version
+```
+
+### 4. Make Scripts Executable
+
+```bash
+# Make deployment scripts executable
+chmod +x scripts/deploy.sh
+chmod +x scripts/cleanup.sh
+
+# Verify script permissions
+ls -la scripts/
+```
 
 ### AWS Permissions
 
@@ -82,41 +155,48 @@ Your AWS user/role needs the following permissions:
 
 ## Quick Start
 
-### 1. Download Source Code from GitHub
+### 1. Complete Environment Setup
 
-**Option A: Using Git Clone (Recommended)**
 ```bash
-# Clone the repository from GitHub
+# Clone repository
 git clone https://github.com/your-username/lambda-crud-api.git
 cd lambda-crud-api
+
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# Make scripts executable
+chmod +x scripts/deploy.sh
+
+# Verify setup
+python -c "import boto3; print('✅ boto3 ready')"
+aws --version
+terraform --version
 ```
 
-**Option B: Download ZIP File**
-1. Go to the GitHub repository: `https://github.com/your-username/lambda-crud-api`
-2. Click the green "Code" button
-3. Select "Download ZIP"
-4. Extract the downloaded ZIP file
-5. Navigate to the extracted directory:
-   ```bash
-   cd lambda-crud-api
-   ```
-
-### 2. Setup Environment
+### 2. Configure AWS Credentials
 
 ```bash
-# Install Python dependencies
-pip3 install -r requirements.txt
+# Configure AWS credentials (if not already done)
+aws configure
 
-# Verify Python version (should be 3.9 or later)
-python3 --version
-
-# Make deployment scripts executable (Linux/macOS)
-chmod +x scripts/deploy.sh
+# Verify credentials
+aws sts get-caller-identity
 ```
 
 ### 3. Deploy with Automated Script
 
+**⚠️ Important: Always ensure virtual environment is activated before deployment**
+
 ```bash
+# Activate virtual environment (if not already active)
+source venv/bin/activate
+
 # Deploy to development environment (default)
 ./scripts/deploy.sh
 
@@ -168,6 +248,7 @@ The automated deployment script handles everything:
 ```
 
 **Script Options:**
+
 - `-e, --environment`: Target environment (dev, staging, prod)
 - `-r, --region`: AWS region
 - `-m, --method`: Deployment method (terraform, cloudformation)
@@ -235,15 +316,20 @@ python3 scripts/deploy.py --environment prod --region ap-northeast-1
 
 ### Method 4: Manual Python Script
 
+**⚠️ Important: Ensure virtual environment is activated**
+
 ```bash
+# Activate virtual environment
+source venv/bin/activate
+
 # Deploy Lambda functions only (infrastructure must exist)
-python3 scripts/deploy.py \
+python scripts/deploy.py \
   --environment prod \
   --region ap-northeast-1 \
   --function create
 
 # Deploy all functions with tests
-python3 scripts/deploy.py \
+python scripts/deploy.py \
   --environment prod \
   --region ap-northeast-1
 ```
@@ -261,6 +347,7 @@ python3 scripts/deploy.py \
 ```
 
 **Dev Environment Features:**
+
 - Shorter log retention (7 days)
 - Lower reserved concurrency
 - Relaxed monitoring
@@ -272,6 +359,7 @@ python3 scripts/deploy.py \
 ```
 
 **Staging Environment Features:**
+
 - Production-like configuration
 - Extended log retention (30 days)
 - Enhanced monitoring
@@ -284,6 +372,7 @@ python3 scripts/deploy.py \
 ```
 
 **Production Environment Features:**
+
 - High availability configuration
 - Extended log retention (90 days)
 - Maximum reserved concurrency
@@ -303,18 +392,18 @@ done
 
 ### Lambda Function Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
+| Variable              | Description         | Default                |
+| --------------------- | ------------------- | ---------------------- |
 | `DYNAMODB_TABLE_NAME` | DynamoDB table name | `crud-api-items-{env}` |
-| `AWS_REGION` | AWS region | `us-east-1` |
-| `ENVIRONMENT` | Environment name | `dev` |
+| `AWS_REGION`          | AWS region          | `us-east-1`            |
+| `ENVIRONMENT`         | Environment name    | `dev`                  |
 
 ### Deployment Script Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
+| Variable             | Description        | Default          |
+| -------------------- | ------------------ | ---------------- |
 | `AWS_DEFAULT_REGION` | Default AWS region | `ap-northeast-1` |
-| `AWS_PROFILE` | AWS profile to use | `default` |
+| `AWS_PROFILE`        | AWS profile to use | `default`        |
 
 ## Testing
 
@@ -394,12 +483,14 @@ artillery run load-test.yml
 Key metrics to monitor:
 
 - **Lambda Function Metrics:**
+
   - Duration
   - Error count
   - Throttles
   - Concurrent executions
 
 - **API Gateway Metrics:**
+
   - Request count
   - Latency
   - 4XX/5XX errors
@@ -448,12 +539,61 @@ aws logs start-query \
 
 ### Common Issues
 
-#### 1. Deployment Fails with Permission Errors
+#### 1. ModuleNotFoundError: No module named 'boto3'
+
+**Problem:** Python dependencies not installed or virtual environment not activated
+
+**Solution:**
+
+```bash
+# Check if virtual environment is activated
+echo $VIRTUAL_ENV
+
+# If not activated, activate it
+source venv/bin/activate
+
+# Install/reinstall dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# Verify boto3 installation
+python -c "import boto3; print('boto3 version:', boto3.__version__)"
+```
+
+#### 2. Virtual Environment Issues
+
+**Problem:** Virtual environment not working properly
+
+**Solution:**
+
+```bash
+# Remove existing virtual environment
+rm -rf venv
+
+# Create new virtual environment
+python3 -m venv venv
+
+# Activate virtual environment
+source venv/bin/activate
+
+# Install dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# Verify setup
+python -c "import boto3, pytest; print('All dependencies installed')"
+```
+
+#### 3. Deployment Fails with Permission Errors
 
 **Problem:** AWS credentials don't have sufficient permissions
 
 **Solution:**
+
 ```bash
+# Ensure virtual environment is activated
+source venv/bin/activate
+
 # Check current permissions
 aws sts get-caller-identity
 
@@ -466,6 +606,7 @@ aws iam list-attached-user-policies --user-name your-username
 **Problem:** Lambda functions timing out
 
 **Solution:**
+
 ```bash
 # Increase timeout in Terraform
 # In terraform/variables.tf
@@ -482,6 +623,7 @@ Timeout: 60
 **Problem:** DynamoDB read/write capacity exceeded
 
 **Solution:**
+
 ```bash
 # Check DynamoDB metrics
 aws dynamodb describe-table --table-name crud-api-items-prod
@@ -500,6 +642,7 @@ aws application-autoscaling register-scalable-target \
 **Problem:** CORS errors in web browsers
 
 **Solution:**
+
 - Verify OPTIONS methods are deployed
 - Check CORS headers in responses
 - Ensure preflight requests are handled
@@ -509,6 +652,7 @@ aws application-autoscaling register-scalable-target \
 **Problem:** High latency on first requests
 
 **Solutions:**
+
 ```bash
 # Enable provisioned concurrency
 aws lambda put-provisioned-concurrency-config \

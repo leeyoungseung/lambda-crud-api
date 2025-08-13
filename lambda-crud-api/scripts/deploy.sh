@@ -128,6 +128,24 @@ echo "----------------------------------------"
 check_prerequisites() {
     print_info "Checking prerequisites..."
     
+    # Check if virtual environment is activated
+    if [[ -z "$VIRTUAL_ENV" ]]; then
+        print_warning "Python virtual environment not detected."
+        print_info "It's recommended to use a virtual environment:"
+        print_info "  python3 -m venv venv"
+        print_info "  source venv/bin/activate"
+        print_info "  pip install -r requirements.txt"
+        echo ""
+        read -p "Continue without virtual environment? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            print_info "Please activate virtual environment and try again."
+            exit 1
+        fi
+    else
+        print_success "Virtual environment detected: $VIRTUAL_ENV"
+    fi
+    
     # Check AWS CLI
     if ! command -v aws &> /dev/null; then
         print_error "AWS CLI not found. Please install AWS CLI."
@@ -143,6 +161,13 @@ check_prerequisites() {
     # Check Python
     if ! command -v python3 &> /dev/null; then
         print_error "Python 3 not found. Please install Python 3."
+        exit 1
+    fi
+    
+    # Check boto3 availability
+    if ! python3 -c "import boto3" &> /dev/null; then
+        print_error "boto3 not found. Please install dependencies:"
+        print_error "  pip install -r requirements.txt"
         exit 1
     fi
     
@@ -331,10 +356,19 @@ deploy_lambda_functions() {
         PYTHON_ARGS="$PYTHON_ARGS --function $FUNCTION"
     fi
     
-    if python3 scripts/deploy.py $PYTHON_ARGS; then
+    # Use python instead of python3 when in virtual environment
+    PYTHON_CMD="python3"
+    if [[ -n "$VIRTUAL_ENV" ]]; then
+        PYTHON_CMD="python"
+    fi
+    
+    if $PYTHON_CMD scripts/deploy.py $PYTHON_ARGS; then
         print_success "Lambda functions deployed successfully"
     else
         print_error "Lambda function deployment failed"
+        print_error "Make sure virtual environment is activated and dependencies are installed:"
+        print_error "  source venv/bin/activate"
+        print_error "  pip install -r requirements.txt"
         exit 1
     fi
 }
