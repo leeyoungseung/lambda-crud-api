@@ -73,13 +73,13 @@ variable "lambda_memory_size" {
 }
 
 variable "lambda_reserved_concurrency" {
-  description = "Reserved concurrency limit for Lambda functions"
+  description = "Reserved concurrency limit for Lambda functions (null means no limit)"
   type        = number
-  default     = 100
+  default     = null
   
   validation {
-    condition     = var.lambda_reserved_concurrency >= 0
-    error_message = "Reserved concurrency must be non-negative."
+    condition     = var.lambda_reserved_concurrency == null || var.lambda_reserved_concurrency >= 0
+    error_message = "Reserved concurrency must be non-negative or null."
   }
 }
 

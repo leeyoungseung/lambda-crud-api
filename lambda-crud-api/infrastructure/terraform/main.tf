@@ -172,8 +172,6 @@ resource "aws_lambda_function" "create_lambda" {
     }
   }
 
-  reserved_concurrent_executions = var.lambda_reserved_concurrency
-
   depends_on = [
     aws_iam_role_policy_attachment.lambda_basic_execution,
     aws_iam_role_policy.lambda_dynamodb_policy,
@@ -213,8 +211,6 @@ resource "aws_lambda_function" "read_lambda" {
     }
   }
 
-  reserved_concurrent_executions = var.lambda_reserved_concurrency
-
   depends_on = [
     aws_iam_role_policy_attachment.lambda_basic_execution,
     aws_iam_role_policy.lambda_dynamodb_policy,
@@ -253,8 +249,6 @@ resource "aws_lambda_function" "update_lambda" {
     }
   }
 
-  reserved_concurrent_executions = var.lambda_reserved_concurrency
-
   depends_on = [
     aws_iam_role_policy_attachment.lambda_basic_execution,
     aws_iam_role_policy.lambda_dynamodb_policy,
@@ -292,8 +286,6 @@ resource "aws_lambda_function" "delete_lambda" {
       ENVIRONMENT        = var.environment
     }
   }
-
-  reserved_concurrent_executions = var.lambda_reserved_concurrency
 
   depends_on = [
     aws_iam_role_policy_attachment.lambda_basic_execution,
