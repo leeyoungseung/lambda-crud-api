@@ -15,28 +15,13 @@ terraform {
 
 # Variables are defined in variables.tf
 
-# Create placeholder ZIP file using data source
-data "archive_file" "placeholder_zip" {
-  type        = "zip"
-  output_path = "${path.module}/placeholder.zip"
-  
-  source {
-    content = <<EOF
-def lambda_handler(event, context):
-    """
-    Placeholder Lambda function for initial infrastructure deployment.
-    This will be replaced with actual function code during deployment.
-    """
-    return {
-        'statusCode': 200,
-        'headers': {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
-        },
-        'body': '{"message": "Placeholder function - Deploy actual code using deployment scripts"}'
-    }
-EOF
-    filename = "index.py"
+# Check for Lambda function ZIP files (created by deploy.py)
+locals {
+  lambda_zip_files = {
+    create = "${path.module}/create-function.zip"
+    read   = "${path.module}/read-function.zip"
+    update = "${path.module}/update-function.zip"
+    delete = "${path.module}/delete-function.zip"
   }
 }
 
@@ -160,9 +145,9 @@ resource "aws_lambda_function" "create_lambda" {
   timeout      = var.lambda_timeout
   memory_size  = var.lambda_memory_size
 
-  # Use dynamically created placeholder ZIP
-  filename         = data.archive_file.placeholder_zip.output_path
-  source_code_hash = data.archive_file.placeholder_zip.output_base64sha256
+  # Use actual function ZIP file
+  filename         = local.lambda_zip_files.create
+  source_code_hash = filebase64sha256(local.lambda_zip_files.create)
 
   environment {
     variables = {
@@ -194,8 +179,8 @@ resource "aws_lambda_function" "create_lambda" {
 }
 
 resource "aws_lambda_function" "read_lambda" {
-  filename         = data.archive_file.placeholder_zip.output_path
-  source_code_hash = data.archive_file.placeholder_zip.output_base64sha256
+  filename         = local.lambda_zip_files.read
+  source_code_hash = filebase64sha256(local.lambda_zip_files.read)
   function_name    = "crud-api-read-${var.environment}"
   role            = aws_iam_role.lambda_execution_role.arn
   handler         = "read_handler.lambda_handler"
@@ -232,8 +217,8 @@ resource "aws_lambda_function" "read_lambda" {
 }
 
 resource "aws_lambda_function" "update_lambda" {
-  filename         = data.archive_file.placeholder_zip.output_path
-  source_code_hash = data.archive_file.placeholder_zip.output_base64sha256
+  filename         = local.lambda_zip_files.update
+  source_code_hash = filebase64sha256(local.lambda_zip_files.update)
   function_name    = "crud-api-update-${var.environment}"
   role            = aws_iam_role.lambda_execution_role.arn
   handler         = "update_handler.lambda_handler"
@@ -270,8 +255,8 @@ resource "aws_lambda_function" "update_lambda" {
 }
 
 resource "aws_lambda_function" "delete_lambda" {
-  filename         = data.archive_file.placeholder_zip.output_path
-  source_code_hash = data.archive_file.placeholder_zip.output_base64sha256
+  filename         = local.lambda_zip_files.delete
+  source_code_hash = filebase64sha256(local.lambda_zip_files.delete)
   function_name    = "crud-api-delete-${var.environment}"
   role            = aws_iam_role.lambda_execution_role.arn
   handler         = "delete_handler.lambda_handler"

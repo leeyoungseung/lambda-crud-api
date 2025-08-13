@@ -343,18 +343,14 @@ deploy_api_gateway() {
     print_success "API Gateway deployed successfully"
 }
 
-# Deploy Lambda functions
-deploy_lambda_functions() {
-    print_info "Deploying Lambda functions..."
+# Package Lambda functions
+package_lambda_functions() {
+    print_info "Packaging Lambda functions..."
     
     cd "$PROJECT_ROOT"
     
-    # Use Python deployment script
+    # Use Python packaging script
     PYTHON_ARGS="--environment $ENVIRONMENT --region $REGION"
-    
-    if [[ "$SKIP_TESTS" == true ]]; then
-        PYTHON_ARGS="$PYTHON_ARGS --skip-tests"
-    fi
     
     if [[ -n "$FUNCTION" ]]; then
         PYTHON_ARGS="$PYTHON_ARGS --function $FUNCTION"
@@ -367,9 +363,9 @@ deploy_lambda_functions() {
     fi
     
     if $PYTHON_CMD scripts/deploy.py $PYTHON_ARGS; then
-        print_success "Lambda functions deployed successfully"
+        print_success "Lambda functions packaged successfully"
     else
-        print_error "Lambda function deployment failed"
+        print_error "Lambda function packaging failed"
         print_error "Make sure virtual environment is activated and dependencies are installed:"
         print_error "  source venv/bin/activate"
         print_error "  pip install -r requirements.txt"
@@ -412,7 +408,7 @@ main() {
         fi
     fi
     
-    deploy_lambda_functions
+    package_lambda_functions
     get_api_url
     
     echo "----------------------------------------"

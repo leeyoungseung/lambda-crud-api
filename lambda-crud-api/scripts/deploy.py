@@ -16,12 +16,12 @@ import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 
 
-class LambdaDeployer:
-    """Handles deployment of Lambda CRUD API functions."""
+class LambdaPackager:
+    """Handles packaging of Lambda CRUD API functions for Terraform deployment."""
     
     def __init__(self, environment: str = 'dev', region: str = 'ap-northeast-1'):
         """
-        Initialize the deployer.
+        Initialize the packager.
         
         Args:
             environment: Target environment (dev, staging, prod)
@@ -31,34 +31,23 @@ class LambdaDeployer:
         self.region = region
         self.project_root = Path(__file__).parent.parent
         self.build_dir = self.project_root / 'build'
-        
-        # Initialize AWS clients
-        try:
-            self.lambda_client = boto3.client('lambda', region_name=region)
-            self.s3_client = boto3.client('s3', region_name=region)
-        except NoCredentialsError:
-            print("❌ AWS credentials not found. Please configure your credentials.")
-            sys.exit(1)
+        self.terraform_dir = self.project_root / 'infrastructure' / 'terraform'
         
         # Lambda function configurations
         self.functions = {
             'create': {
-                'name': f'crud-api-create-{environment}',
                 'handler': 'create_handler.lambda_handler',
                 'description': 'Create items in CRUD API'
             },
             'read': {
-                'name': f'crud-api-read-{environment}',
                 'handler': 'read_handler.lambda_handler',
                 'description': 'Read items from CRUD API'
             },
             'update': {
-                'name': f'crud-api-update-{environment}',
                 'handler': 'update_handler.lambda_handler',
                 'description': 'Update items in CRUD API'
             },
             'delete': {
-                'name': f'crud-api-delete-{environment}',
                 'handler': 'delete_handler.lambda_handler',
                 'description': 'Delete items from CRUD API'
             }
@@ -125,7 +114,8 @@ class LambdaDeployer:
         """
         print(f"📦 Creating deployment package for {function_name}...")
         
-        zip_path = self.build_dir / f'{function_name}-deployment.zip'
+        # Create zip file in terraform directory for Terraform to use
+        zip_path = self.terraform_dir / f'{function_name}-function.zip'
         
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
             # Add all files from build directory
@@ -142,94 +132,37 @@ class LambdaDeployer:
         print(f"✅ Deployment package created: {zip_path}")
         return zip_path
     
-    def deploy_function(self, function_name: str, zip_path: Path) -> bool:
+    def package_all_functions(self) -> bool:
         """
-        Deploy Lambda function.
-        
-        Args:
-            function_name: Name of the function (create, read, update, delete)
-            zip_path: Path to deployment package
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        config = self.functions[function_name]
-        lambda_name = config['name']
-        
-        print(f"🚀 Deploying {lambda_name}...")
-        
-        try:
-            # Read deployment package
-            with open(zip_path, 'rb') as f:
-                zip_content = f.read()
-            
-            # Check if function exists
-            try:
-                self.lambda_client.get_function(FunctionName=lambda_name)
-                function_exists = True
-            except ClientError as e:
-                if e.response['Error']['Code'] == 'ResourceNotFoundException':
-                    function_exists = False
-                else:
-                    raise
-            
-            if function_exists:
-                # Update existing function
-                print(f"📝 Updating existing function {lambda_name}...")
-                response = self.lambda_client.update_function_code(
-                    FunctionName=lambda_name,
-                    ZipFile=zip_content
-                )
-                
-                # Update function configuration
-                self.lambda_client.update_function_configuration(
-                    FunctionName=lambda_name,
-                    Handler=config['handler'],
-                    Runtime='python3.12',
-                    Timeout=30,
-                    MemorySize=256,
-                    Environment={
-                        'Variables': {
-                            'DYNAMODB_TABLE_NAME': f'crud-api-items-{self.environment}',
-                            'REGION': self.region,
-                            'ENVIRONMENT': self.environment
-                        }
-                    }
-                )
-            else:
-                print(f"❌ Function {lambda_name} does not exist. Please create it using CloudFormation or Terraform first.")
-                return False
-            
-            print(f"✅ Successfully deployed {lambda_name}")
-            return True
-            
-        except ClientError as e:
-            print(f"❌ Failed to deploy {lambda_name}: {e}")
-            return False
-    
-    def deploy_all_functions(self) -> bool:
-        """
-        Deploy all Lambda functions.
+        Package all Lambda functions for Terraform deployment.
         
         Returns:
-            True if all deployments successful, False otherwise
+            True if all packaging successful, False otherwise
         """
-        print("🚀 Starting deployment of all Lambda functions...")
+        print("📦 Starting packaging of all Lambda functions...")
         
         success_count = 0
         total_count = len(self.functions)
         
         for function_name in self.functions.keys():
-            zip_path = self.create_deployment_package(function_name)
-            if self.deploy_function(function_name, zip_path):
-                success_count += 1
+            try:
+                zip_path = self.create_deployment_package(function_name)
+                if zip_path.exists():
+                    success_count += 1
+                    print(f"✅ Successfully packaged {function_name}")
+                else:
+                    print(f"❌ Failed to package {function_name}")
+            except Exception as e:
+                print(f"❌ Error packaging {function_name}: {e}")
         
         if success_count == total_count:
-            print(f"🎉 All {total_count} functions deployed successfully!")
+            print(f"🎉 All {total_count} functions packaged successfully!")
+            print(f"📁 ZIP files created in: {self.terraform_dir}")
             return True
         else:
-            print(f"⚠️  {success_count}/{total_count} functions deployed successfully")
+            print(f"⚠️  {success_count}/{total_count} functions packaged successfully")
             return False
+
     
     def validate_environment(self) -> bool:
         """Validate deployment environment and prerequisites."""
@@ -286,8 +219,8 @@ class LambdaDeployer:
 
 
 def main():
-    """Main deployment function."""
-    parser = argparse.ArgumentParser(description='Deploy Lambda CRUD API')
+    """Main packaging function."""
+    parser = argparse.ArgumentParser(description='Package Lambda CRUD API functions for Terraform')
     parser.add_argument(
         '--environment', '-e',
         choices=['dev', 'staging', 'prod'],
@@ -300,68 +233,52 @@ def main():
         help='AWS region'
     )
     parser.add_argument(
-        '--skip-tests',
-        action='store_true',
-        help='Skip running tests before deployment'
-    )
-    parser.add_argument(
-        '--skip-validation',
-        action='store_true',
-        help='Skip environment validation'
-    )
-    parser.add_argument(
         '--function', '-f',
         choices=['create', 'read', 'update', 'delete'],
-        help='Deploy specific function only'
+        help='Package specific function only'
     )
     
     args = parser.parse_args()
     
-    print(f"🚀 Lambda CRUD API Deployment")
+    print(f"📦 Lambda CRUD API Function Packaging")
     print(f"Environment: {args.environment}")
     print(f"Region: {args.region}")
     print("-" * 50)
     
-    deployer = LambdaDeployer(args.environment, args.region)
+    packager = LambdaPackager(args.environment, args.region)
     
     try:
-        # Validate environment
-        if not args.skip_validation and not deployer.validate_environment():
-            print("❌ Environment validation failed")
-            sys.exit(1)
+        # Prepare packaging
+        packager.create_build_directory()
+        packager.install_dependencies()
+        packager.copy_source_code()
         
-        # Run tests
-        if not args.skip_tests and not deployer.run_tests():
-            print("❌ Tests failed")
-            sys.exit(1)
-        
-        # Prepare deployment
-        deployer.create_build_directory()
-        deployer.install_dependencies()
-        deployer.copy_source_code()
-        
-        # Deploy functions
+        # Package functions
         if args.function:
-            # Deploy specific function
-            zip_path = deployer.create_deployment_package(args.function)
-            success = deployer.deploy_function(args.function, zip_path)
+            # Package specific function
+            print(f"📦 Packaging {args.function} function...")
+            zip_path = packager.create_deployment_package(args.function)
+            success = zip_path.exists()
         else:
-            # Deploy all functions
-            success = deployer.deploy_all_functions()
+            # Package all functions
+            success = packager.package_all_functions()
         
         if success:
-            print("\n🎉 Deployment completed successfully!")
-            print(f"API URL: https://your-api-id.execute-api.{args.region}.amazonaws.com/v1")
+            print("\n🎉 Packaging completed successfully!")
+            print(f"📁 ZIP files are ready in: {packager.terraform_dir}")
+            print("\n🚀 Next step: Run Terraform to deploy the infrastructure:")
+            print(f"   cd infrastructure/terraform")
+            print(f"   terraform apply -var environment={args.environment} -var aws_region={args.region}")
             sys.exit(0)
         else:
-            print("\n❌ Deployment failed")
+            print("\n❌ Packaging failed")
             sys.exit(1)
             
     except KeyboardInterrupt:
-        print("\n⚠️  Deployment cancelled by user")
+        print("\n⚠️  Packaging cancelled by user")
         sys.exit(1)
     except Exception as e:
-        print(f"\n❌ Unexpected error during deployment: {e}")
+        print(f"\n❌ Unexpected error during packaging: {e}")
         sys.exit(1)
 
 

@@ -189,7 +189,7 @@ aws configure
 aws sts get-caller-identity
 ```
 
-### 3. Deploy with Automated Script
+### 3. Deploy with New Two-Step Process
 
 **⚠️ Important: Always ensure virtual environment is activated before deployment**
 
@@ -197,14 +197,23 @@ aws sts get-caller-identity
 # Activate virtual environment (if not already active)
 source venv/bin/activate
 
+# Step 1: Package Lambda functions (creates ZIP files)
+python scripts/deploy.py --environment prod --region ap-northeast-1
+
+# Step 2: Deploy infrastructure with Terraform
+cd infrastructure/terraform
+terraform init
+terraform apply -var environment=prod -var aws_region=ap-northeast-1
+```
+
+**Or use the automated script (does both steps):**
+
+```bash
 # Deploy to development environment (default)
 ./scripts/deploy.sh
 
 # Deploy to production in Tokyo region
 ./scripts/deploy.sh -e prod -r ap-northeast-1
-
-# Deploy with specific options
-./scripts/deploy.sh --environment staging --method terraform
 ```
 
 ### 4. Test the API
@@ -229,22 +238,38 @@ curl $API_URL/items
 
 ## Deployment Methods
 
-### Method 1: Automated Script (Recommended)
+### Method 1: Two-Step Process (Recommended)
 
-The automated deployment script handles everything:
+**Step 1: Package Lambda Functions**
+```bash
+# Package all functions
+python scripts/deploy.py --environment prod --region ap-northeast-1
+
+# Package specific function only
+python scripts/deploy.py --function create --environment prod
+```
+
+**Step 2: Deploy with Terraform**
+```bash
+cd infrastructure/terraform
+
+# Initialize Terraform (first time only)
+terraform init
+
+# Deploy infrastructure
+terraform apply -var environment=prod -var aws_region=ap-northeast-1
+```
+
+### Method 2: Automated Script
+
+The automated script does both steps:
 
 ```bash
-# Full deployment with all options
-./scripts/deploy.sh \
-  --environment prod \
-  --region ap-northeast-1 \
-  --method terraform
+# Full deployment
+./scripts/deploy.sh --environment prod --region ap-northeast-1
 
-# Deploy only Lambda functions (infrastructure exists)
-./scripts/deploy.sh --skip-infrastructure
-
-# Deploy specific function only
-./scripts/deploy.sh --function create
+# Deploy with Terraform method
+./scripts/deploy.sh --environment prod --method terraform
 ```
 
 **Script Options:**
@@ -601,7 +626,25 @@ python scripts/deploy.py --skip-tests
 
 **Note:** Tests need to be fixed but deployment functionality is working correctly.
 
-#### 4. Deployment Fails with Permission Errors
+#### 4. Lambda Function Update Conflicts
+
+**Problem:** `ResourceConflictException: The operation cannot be performed at this time. An update is in progress`
+
+**Solution:**
+This happens when Lambda functions are already being updated. The deployment script now includes automatic retry logic, but you can also:
+
+```bash
+# Wait a few minutes and retry deployment
+./scripts/deploy.sh
+
+# Or deploy functions one by one
+python scripts/deploy.py --function create
+python scripts/deploy.py --function read
+python scripts/deploy.py --function update
+python scripts/deploy.py --function delete
+```
+
+#### 5. Deployment Fails with Permission Errors
 
 **Problem:** AWS credentials don't have sufficient permissions
 
