@@ -72,16 +72,7 @@ variable "lambda_memory_size" {
   }
 }
 
-variable "lambda_reserved_concurrency" {
-  description = "Reserved concurrency limit for Lambda functions (null means no limit)"
-  type        = number
-  default     = null
-  
-  validation {
-    condition     = var.lambda_reserved_concurrency == null || var.lambda_reserved_concurrency >= 0
-    error_message = "Reserved concurrency must be non-negative or null."
-  }
-}
+
 
 variable "log_retention_days" {
   description = "CloudWatch log retention period in days"
