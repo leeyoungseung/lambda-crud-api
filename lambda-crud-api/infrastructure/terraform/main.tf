@@ -100,25 +100,25 @@ resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
 # CloudWatch Log Groups
 resource "aws_cloudwatch_log_group" "create_lambda_logs" {
   name              = "/aws/lambda/crud-api-create-${var.environment}"
-  retention_in_days = 14
+  retention_in_days = var.log_retention_days
   tags              = local.common_tags
 }
 
 resource "aws_cloudwatch_log_group" "read_lambda_logs" {
   name              = "/aws/lambda/crud-api-read-${var.environment}"
-  retention_in_days = 14
+  retention_in_days = var.log_retention_days
   tags              = local.common_tags
 }
 
 resource "aws_cloudwatch_log_group" "update_lambda_logs" {
   name              = "/aws/lambda/crud-api-update-${var.environment}"
-  retention_in_days = 14
+  retention_in_days = var.log_retention_days
   tags              = local.common_tags
 }
 
 resource "aws_cloudwatch_log_group" "delete_lambda_logs" {
   name              = "/aws/lambda/crud-api-delete-${var.environment}"
-  retention_in_days = 14
+  retention_in_days = var.log_retention_days
   tags              = local.common_tags
 }
 
@@ -129,8 +129,8 @@ resource "aws_lambda_function" "create_lambda" {
   role            = aws_iam_role.lambda_execution_role.arn
   handler         = "create_handler.lambda_handler"
   runtime         = var.lambda_runtime
-  timeout         = 30
-  memory_size     = 256
+  timeout         = var.lambda_timeout
+  memory_size     = var.lambda_memory_size
 
   environment {
     variables = {
@@ -140,7 +140,7 @@ resource "aws_lambda_function" "create_lambda" {
     }
   }
 
-  reserved_concurrent_executions = 100
+  reserved_concurrent_executions = var.lambda_reserved_concurrency
 
   depends_on = [
     aws_iam_role_policy_attachment.lambda_basic_execution,
@@ -152,6 +152,14 @@ resource "aws_lambda_function" "create_lambda" {
     Component = "lambda"
     Operation = "create"
   })
+
+  lifecycle {
+    ignore_changes = [
+      filename,
+      last_modified,
+      source_code_hash,
+    ]
+  }
 }
 
 resource "aws_lambda_function" "read_lambda" {
@@ -160,8 +168,8 @@ resource "aws_lambda_function" "read_lambda" {
   role            = aws_iam_role.lambda_execution_role.arn
   handler         = "read_handler.lambda_handler"
   runtime         = var.lambda_runtime
-  timeout         = 30
-  memory_size     = 256
+  timeout         = var.lambda_timeout
+  memory_size     = var.lambda_memory_size
 
   environment {
     variables = {
@@ -171,7 +179,7 @@ resource "aws_lambda_function" "read_lambda" {
     }
   }
 
-  reserved_concurrent_executions = 100
+  reserved_concurrent_executions = var.lambda_reserved_concurrency
 
   depends_on = [
     aws_iam_role_policy_attachment.lambda_basic_execution,
@@ -183,6 +191,14 @@ resource "aws_lambda_function" "read_lambda" {
     Component = "lambda"
     Operation = "read"
   })
+
+  lifecycle {
+    ignore_changes = [
+      filename,
+      last_modified,
+      source_code_hash,
+    ]
+  }
 }
 
 resource "aws_lambda_function" "update_lambda" {
@@ -191,8 +207,8 @@ resource "aws_lambda_function" "update_lambda" {
   role            = aws_iam_role.lambda_execution_role.arn
   handler         = "update_handler.lambda_handler"
   runtime         = var.lambda_runtime
-  timeout         = 30
-  memory_size     = 256
+  timeout         = var.lambda_timeout
+  memory_size     = var.lambda_memory_size
 
   environment {
     variables = {
@@ -202,7 +218,7 @@ resource "aws_lambda_function" "update_lambda" {
     }
   }
 
-  reserved_concurrent_executions = 100
+  reserved_concurrent_executions = var.lambda_reserved_concurrency
 
   depends_on = [
     aws_iam_role_policy_attachment.lambda_basic_execution,
@@ -214,6 +230,14 @@ resource "aws_lambda_function" "update_lambda" {
     Component = "lambda"
     Operation = "update"
   })
+
+  lifecycle {
+    ignore_changes = [
+      filename,
+      last_modified,
+      source_code_hash,
+    ]
+  }
 }
 
 resource "aws_lambda_function" "delete_lambda" {
@@ -222,8 +246,8 @@ resource "aws_lambda_function" "delete_lambda" {
   role            = aws_iam_role.lambda_execution_role.arn
   handler         = "delete_handler.lambda_handler"
   runtime         = var.lambda_runtime
-  timeout         = 30
-  memory_size     = 256
+  timeout         = var.lambda_timeout
+  memory_size     = var.lambda_memory_size
 
   environment {
     variables = {
@@ -233,7 +257,7 @@ resource "aws_lambda_function" "delete_lambda" {
     }
   }
 
-  reserved_concurrent_executions = 100
+  reserved_concurrent_executions = var.lambda_reserved_concurrency
 
   depends_on = [
     aws_iam_role_policy_attachment.lambda_basic_execution,
@@ -245,6 +269,14 @@ resource "aws_lambda_function" "delete_lambda" {
     Component = "lambda"
     Operation = "delete"
   })
+
+  lifecycle {
+    ignore_changes = [
+      filename,
+      last_modified,
+      source_code_hash,
+    ]
+  }
 }
 
 # Outputs are defined in outputs.tf
