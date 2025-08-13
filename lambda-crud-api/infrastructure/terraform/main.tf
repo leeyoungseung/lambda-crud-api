@@ -1,6 +1,8 @@
-# Terraform configuration for Lambda CRUD API infrastructure
+# ==============================================
+# main.tf (fixed) - Lambda CRUD + packaging + IAM + DynamoDB
+# ==============================================
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.3.0"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -17,47 +19,51 @@ terraform {
   }
 }
 
-# Variables are defined in variables.tf
+provider "aws" {
+  region = var.aws_region
+}
 
-########################################
-# 빌드 관련 로컬 값
-########################################
-# 이 파일이 있는 경로: .../infrastructure/terraform
-# 프로젝트 루트: 두 단계 위
+# Project layout assumption:
+#   repo_root/
+#     lambdas/*.py
+#     shared/
+#     requirements.txt (optional)
+#     infrastructure/terraform/*.tf   <-- execute terraform here
+#
+# We derive repo root from this module path.
 locals {
   project_root = abspath("${path.module}/../..")
 
-  # 함수 메타 (각 핸들러에 lambda_handler가 있다고 가정)
   functions = {
     create = {
       file    = "${local.project_root}/lambdas/create_handler.py"
       handler = "create_handler.lambda_handler"
-      log     = "/aws/lambda/crud-api-create-${var.environment}"
       name    = "crud-api-create-${var.environment}"
+      log     = "/aws/lambda/crud-api-create-${var.environment}"
     }
     read = {
       file    = "${local.project_root}/lambdas/read_handler.py"
       handler = "read_handler.lambda_handler"
-      log     = "/aws/lambda/crud-api-read-${var.environment}"
       name    = "crud-api-read-${var.environment}"
+      log     = "/aws/lambda/crud-api-read-${var.environment}"
     }
     update = {
       file    = "${local.project_root}/lambdas/update_handler.py"
       handler = "update_handler.lambda_handler"
-      log     = "/aws/lambda/crud-api-update-${var.environment}"
       name    = "crud-api-update-${var.environment}"
+      log     = "/aws/lambda/crud-api-update-${var.environment}"
     }
     delete = {
       file    = "${local.project_root}/lambdas/delete_handler.py"
       handler = "delete_handler.lambda_handler"
-      log     = "/aws/lambda/crud-api-delete-${var.environment}"
       name    = "crud-api-delete-${var.environment}"
+      log     = "/aws/lambda/crud-api-delete-${var.environment}"
     }
   }
 
-  build_root = "${path.module}/build"
+  build_root           = "${path.module}/build"
+  table_name_with_env  = "${var.table_name}-${var.environment}"
 
-  table_name_with_env = "${var.table_name}-${var.environment}"
   common_tags = {
     Environment = var.environment
     Project     = var.project_name
@@ -65,9 +71,9 @@ locals {
   }
 }
 
-########################################
+# -----------------------------
 # DynamoDB Table
-########################################
+# -----------------------------
 resource "aws_dynamodb_table" "items_table" {
   name         = local.table_name_with_env
   billing_mode = "PAY_PER_REQUEST"
@@ -78,20 +84,15 @@ resource "aws_dynamodb_table" "items_table" {
     type = "S"
   }
 
-  point_in_time_recovery {
-    enabled = true
-  }
-
-  server_side_encryption {
-    enabled = true
-  }
+  point_in_time_recovery { enabled = true }
+  server_side_encryption { enabled = true }
 
   tags = merge(local.common_tags, { Component = "database" })
 }
 
-########################################
-# IAM Role / Policy
-########################################
+# -----------------------------
+# IAM: Lambda execution role + policies
+# -----------------------------
 resource "aws_iam_role" "lambda_execution_role" {
   name = "lambda-crud-api-execution-role-${var.environment}"
 
@@ -107,6 +108,13 @@ resource "aws_iam_role" "lambda_execution_role" {
   tags = merge(local.common_tags, { Component = "iam" })
 }
 
+# CloudWatch basic execution
+resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
+  role       = aws_iam_role.lambda_execution_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+# Allow Lambda to access our table
 resource "aws_iam_role_policy" "lambda_dynamodb_policy" {
   name = "lambda-dynamodb-access-${var.environment}"
   role = aws_iam_role.lambda_execution_role.id
@@ -128,14 +136,9 @@ resource "aws_iam_role_policy" "lambda_dynamodb_policy" {
   })
 }
 
-resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
-  role       = aws_iam_role.lambda_execution_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-########################################
-# CloudWatch Log Groups (선제 생성)
-########################################
+# -----------------------------
+# CloudWatch Log Groups (pre-create with retention)
+# -----------------------------
 resource "aws_cloudwatch_log_group" "lambda_logs" {
   for_each          = local.functions
   name              = each.value.log
@@ -143,69 +146,65 @@ resource "aws_cloudwatch_log_group" "lambda_logs" {
   tags              = local.common_tags
 }
 
-########################################
-# (1) 함수별 빌드 단계: 핸들러/공유코드/의존성 수집
-########################################
+# -----------------------------
+# Build step (per function): copy handler/shared and vendor requirements
+# -----------------------------
 resource "null_resource" "build" {
   for_each = local.functions
 
-  # 핸들러 / requirements.txt / shared 주요 파일 변경 시 재빌드
   triggers = {
     handler_hash = filesha256(each.value.file)
     req_hash     = try(filesha256("${local.project_root}/requirements.txt"), "no-req")
-    shared_init  = try(filesha256("${local.project_root}/shared/__init__.py"), "no-shared")
+    shared_hash  = try(filesha256("${local.project_root}/shared/__init__.py"), "no-shared")
   }
 
   provisioner "local-exec" {
     working_dir = path.module
+    interpreter = ["/bin/bash", "-c"]
     command = <<EOT
 set -euo pipefail
 
 BUILD_DIR="${local.build_root}/${each.key}"
 ROOT="${local.project_root}"
 
-echo "[Build:${each.key}] prepare build dir: $BUILD_DIR"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
-# 1) 핸들러 복사
+# Copy handler
 cp "${each.value.file}" "$BUILD_DIR/"
 
-# 2) shared 패키지 복사 (있으면)
+# Copy shared package if exists
 if [ -d "$ROOT/shared" ]; then
   cp -r "$ROOT/shared" "$BUILD_DIR/shared"
 fi
 
-# 3) 의존성 설치 (requirements.txt가 있으면 zip 루트로 설치)
+# Vendor dependencies to the zip root
 if [ -s "$ROOT/requirements.txt" ]; then
   PYBIN="python3"
+  # If repo-root/venv exists, prefer it
   if [ -x "$ROOT/venv/bin/python" ]; then PYBIN="$ROOT/venv/bin/python"; fi
   $PYBIN -m ensurepip --upgrade >/dev/null 2>&1 || true
   $PYBIN -m pip install --upgrade pip setuptools wheel >/dev/null
-  echo "[Build:${each.key}] pip install -r requirements.txt -t $BUILD_DIR"
   $PYBIN -m pip install -r "$ROOT/requirements.txt" -t "$BUILD_DIR"
-else
-  echo "[Build:${each.key}] no requirements.txt; skip vendoring"
 fi
 EOT
   }
 }
 
-########################################
-# (2) zip 생성 (함수별)
-########################################
+# -----------------------------
+# Zip archive (per function)
+# -----------------------------
 data "archive_file" "lambda_zip" {
   for_each    = local.functions
   type        = "zip"
   source_dir  = "${local.build_root}/${each.key}"
   output_path = "${local.build_root}/${each.key}-function.zip"
-
-  depends_on = [null_resource.build]
+  depends_on  = [null_resource.build]
 }
 
-########################################
-# (3) Lambda Functions (함수별)
-########################################
+# -----------------------------
+# Lambda functions (per function)
+# -----------------------------
 resource "aws_lambda_function" "fn" {
   for_each      = local.functions
   function_name = each.value.name
@@ -222,7 +221,7 @@ resource "aws_lambda_function" "fn" {
   environment {
     variables = {
       DYNAMODB_TABLE_NAME = aws_dynamodb_table.items_table.name
-      REGION              = var.aws_region   # 예약키(AWS_REGION) 대신 사용자 정의 키 사용
+      REGION              = var.aws_region     # don't use AWS_REGION reserved key
       ENVIRONMENT         = var.environment
     }
   }
@@ -238,5 +237,3 @@ resource "aws_lambda_function" "fn" {
     Operation = each.key
   })
 }
-
-# Outputs are defined in outputs.tf
