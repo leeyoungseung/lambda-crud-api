@@ -191,7 +191,7 @@ class LambdaDeployer:
                     Environment={
                         'Variables': {
                             'DYNAMODB_TABLE_NAME': f'crud-api-items-{self.environment}',
-                            'AWS_REGION': self.region,
+                            'REGION': self.region,
                             'ENVIRONMENT': self.environment
                         }
                     }

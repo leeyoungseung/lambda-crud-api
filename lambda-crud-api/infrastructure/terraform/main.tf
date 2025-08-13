@@ -167,7 +167,7 @@ resource "aws_lambda_function" "create_lambda" {
   environment {
     variables = {
       DYNAMODB_TABLE_NAME = aws_dynamodb_table.items_table.name
-      AWS_REGION         = var.aws_region
+      REGION             = var.aws_region
       ENVIRONMENT        = var.environment
     }
   }
@@ -208,7 +208,7 @@ resource "aws_lambda_function" "read_lambda" {
   environment {
     variables = {
       DYNAMODB_TABLE_NAME = aws_dynamodb_table.items_table.name
-      AWS_REGION         = var.aws_region
+      REGION             = var.aws_region
       ENVIRONMENT        = var.environment
     }
   }
@@ -248,7 +248,7 @@ resource "aws_lambda_function" "update_lambda" {
   environment {
     variables = {
       DYNAMODB_TABLE_NAME = aws_dynamodb_table.items_table.name
-      AWS_REGION         = var.aws_region
+      REGION             = var.aws_region
       ENVIRONMENT        = var.environment
     }
   }
@@ -288,7 +288,7 @@ resource "aws_lambda_function" "delete_lambda" {
   environment {
     variables = {
       DYNAMODB_TABLE_NAME = aws_dynamodb_table.items_table.name
-      AWS_REGION         = var.aws_region
+      REGION             = var.aws_region
       ENVIRONMENT        = var.environment
     }
   }

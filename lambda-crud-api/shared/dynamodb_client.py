@@ -31,7 +31,7 @@ class DynamoDBClient:
             region_name: AWS region (defaults to environment variable)
         """
         self.table_name = table_name or os.environ.get('DYNAMODB_TABLE_NAME', 'crud-api-items')
-        self.region_name = region_name or os.environ.get('AWS_REGION', 'ap-northeast-1')
+        self.region_name = region_name or os.environ.get('REGION', 'ap-northeast-1')
         
         try:
             self.dynamodb = boto3.resource('dynamodb', region_name=self.region_name)
