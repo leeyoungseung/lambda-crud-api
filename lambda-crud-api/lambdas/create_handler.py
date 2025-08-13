@@ -104,7 +104,7 @@ def validate_create_data(data: Dict[str, Any]) -> Dict[str, Any]:
     """
     # Additional create-specific validations can be added here
     # For now, we use the standard validation
-    validation_result = validate_item_data(data, ITEM_SCHEMA, is_update=False)
+    validation_result = validate_item_data(data, ITEM_SCHEMA, is_update=False, is_create=True)
     
     if not validation_result.is_valid:
         return validation_error_response(validation_result.errors)

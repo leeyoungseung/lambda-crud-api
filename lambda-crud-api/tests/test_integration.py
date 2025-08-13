@@ -25,7 +25,7 @@ from delete_handler import lambda_handler as delete_handler
 class TestCRUDIntegration:
     """Test complete CRUD workflows."""
     
-    def setup_method(self):
+    def setup_method(self, method):
         """Set up test environment before each test."""
         # Create mock DynamoDB table
         self.dynamodb = boto3.resource('dynamodb', region_name='us-east-1')

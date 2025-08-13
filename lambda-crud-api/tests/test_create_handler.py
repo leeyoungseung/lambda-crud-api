@@ -23,7 +23,7 @@ from dynamodb_client import DynamoDBError
 class TestCreateHandler:
     """Test Create Lambda handler."""
     
-    def setup_method(self):
+    def setup_method(self, method):
         """Set up test environment before each test."""
         # Create mock DynamoDB table
         self.dynamodb = boto3.resource('dynamodb', region_name='us-east-1')

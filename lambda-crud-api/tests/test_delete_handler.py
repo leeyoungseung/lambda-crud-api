@@ -32,7 +32,7 @@ from dynamodb_client import DynamoDBError
 class TestDeleteHandler:
     """Test Delete Lambda handler."""
     
-    def setup_method(self):
+    def setup_method(self, method):
         """Set up test environment before each test."""
         # Create mock DynamoDB table
         self.dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
@@ -544,10 +544,11 @@ class TestResponseHeaders:
         )
         
         # Add test item
+        from decimal import Decimal
         table.put_item(Item={
             "id": "test-item",
             "name": "Test Item",
-            "price": 99.99,
+            "price": Decimal('99.99'),
             "quantity": 1,
             "is_active": True
         })
@@ -582,11 +583,12 @@ class TestEdgeCases:
         )
         
         # Add item with special characters
+        from decimal import Decimal
         special_item = {
             "id": "special-item-123",
             "name": "Item with 'quotes' and \"double quotes\"",
             "description": "Description with\nnewlines and\ttabs",
-            "price": 99.99,
+            "price": Decimal('99.99'),
             "quantity": 1,
             "is_active": True,
             "tags": ["tag with spaces", "tag-with-dashes", "tag_with_underscores"]

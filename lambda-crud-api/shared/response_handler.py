@@ -306,7 +306,7 @@ def log_request(event: Dict[str, Any], context: Any = None) -> None:
         "path": event.get("path"),
         "pathParameters": event.get("pathParameters"),
         "queryStringParameters": event.get("queryStringParameters"),
-        "requestId": context.aws_request_id if context else None
+        "requestId": str(context.aws_request_id) if context and hasattr(context, 'aws_request_id') else None
     }
     
     # Don't log the body content for security reasons
@@ -331,7 +331,7 @@ def log_response(response: Dict[str, Any], context: Any = None) -> None:
     
     log_data = {
         "statusCode": response.get("statusCode"),
-        "requestId": context.aws_request_id if context else None
+        "requestId": str(context.aws_request_id) if context and hasattr(context, 'aws_request_id') else None
     }
     
     # Parse response body to check if it's an error

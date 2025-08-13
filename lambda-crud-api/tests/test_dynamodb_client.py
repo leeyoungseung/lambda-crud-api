@@ -29,7 +29,7 @@ from dynamodb_client import (
 class TestDynamoDBClient:
     """Test DynamoDBClient class."""
     
-    def setup_method(self):
+    def setup_method(self, method):
         """Set up test environment before each test."""
         # Create mock DynamoDB table
         self.dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
@@ -305,7 +305,7 @@ class TestDynamoDBClient:
 class TestModuleFunctions:
     """Test module-level convenience functions."""
     
-    def setup_method(self):
+    def setup_method(self, method):
         """Set up test environment before each test."""
         # Create mock DynamoDB table
         self.dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
@@ -417,7 +417,7 @@ class TestDynamoDBError:
 class TestErrorHandling:
     """Test error handling scenarios."""
     
-    def setup_method(self):
+    def setup_method(self, method):
         """Set up test environment before each test."""
         # Create mock DynamoDB table
         self.dynamodb = boto3.resource('dynamodb', region_name='us-east-1')

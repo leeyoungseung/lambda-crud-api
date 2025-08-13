@@ -80,7 +80,7 @@ ITEM_SCHEMA = {
 
 
 def validate_item_data(data: Dict[str, Any], schema: Dict[str, Any] = ITEM_SCHEMA, 
-                      is_update: bool = False) -> ValidationResult:
+                      is_update: bool = False, is_create: bool = False) -> ValidationResult:
     """
     Validate item data against schema.
     
@@ -88,6 +88,7 @@ def validate_item_data(data: Dict[str, Any], schema: Dict[str, Any] = ITEM_SCHEM
         data: Data to validate
         schema: Validation schema
         is_update: If True, required fields are optional (for updates)
+        is_create: If True, id field is not required (for creates)
     
     Returns:
         ValidationResult with validation status and errors
@@ -97,6 +98,13 @@ def validate_item_data(data: Dict[str, Any], schema: Dict[str, Any] = ITEM_SCHEM
     if not isinstance(data, dict):
         result.add_error("root", "Data must be a JSON object")
         return result
+    
+    # For create operations, modify schema to make id optional
+    if is_create:
+        schema = schema.copy()
+        if 'id' in schema:
+            schema['id'] = schema['id'].copy()
+            schema['id']['required'] = False
     
     # Validate required fields
     if not is_update:
@@ -151,8 +159,8 @@ def validate_data_types(data: Dict[str, Any], schema: Dict[str, Any],
         
         field_schema = schema[field_name]
         
-        # Skip validation for null optional fields
-        if value is None and not field_schema.get("required", False):
+        # Skip validation for null fields (required field null check is done separately)
+        if value is None:
             continue
         
         # Validate based on field type
@@ -271,16 +279,16 @@ def _validate_array(field_name: str, value: Any, schema: Dict[str, Any],
         item_type = schema["item_type"]
         for i, item in enumerate(value):
             if item_type == "string" and not isinstance(item, str):
-                result.add_error(field_name, 
+                result.add_error(f"{field_name}[{i}]", 
                                f"Field '{field_name}[{i}]' must be a string")
             elif item_type == "integer" and (not isinstance(item, int) or isinstance(item, bool)):
-                result.add_error(field_name, 
+                result.add_error(f"{field_name}[{i}]", 
                                f"Field '{field_name}[{i}]' must be an integer")
             elif item_type == "float" and not isinstance(item, (int, float)) or isinstance(item, bool):
-                result.add_error(field_name, 
+                result.add_error(f"{field_name}[{i}]", 
                                f"Field '{field_name}[{i}]' must be a number")
             elif item_type == "boolean" and not isinstance(item, bool):
-                result.add_error(field_name, 
+                result.add_error(f"{field_name}[{i}]", 
                                f"Field '{field_name}[{i}]' must be a boolean")
     
     return result
