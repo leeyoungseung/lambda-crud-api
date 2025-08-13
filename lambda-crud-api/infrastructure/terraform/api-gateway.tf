@@ -337,23 +337,4 @@ resource "aws_iam_role_policy_attachment" "api_gateway_cloudwatch_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
 }
 
-# API Gateway outputs (add to outputs.tf)
-output "api_gateway_id" {
-  description = "ID of the API Gateway"
-  value       = aws_api_gateway_rest_api.crud_api.id
-}
-
-output "api_gateway_url" {
-  description = "URL of the API Gateway"
-  value       = "https://${aws_api_gateway_rest_api.crud_api.id}.execute-api.${var.aws_region}.amazonaws.com/v1"
-}
-
-output "api_gateway_stage_name" {
-  description = "API Gateway stage name"
-  value       = aws_api_gateway_stage.crud_api_stage.stage_name
-}
-
-output "api_gateway_execution_arn" {
-  description = "Execution ARN of the API Gateway"
-  value       = aws_api_gateway_rest_api.crud_api.execution_arn
-}
+# API Gateway outputs are defined in outputs.tf

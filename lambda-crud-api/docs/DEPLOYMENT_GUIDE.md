@@ -1,6 +1,6 @@
 # Lambda CRUD API Deployment Guide
 
-This guide provides step-by-step instructions for deploying the Lambda CRUD API to AWS.
+This guide provides step-by-step instructions for deploying the Lambda CRUD API to AWS. The guide assumes you have downloaded the source code from the GitHub repository.
 
 ## Table of Contents
 
@@ -13,6 +13,21 @@ This guide provides step-by-step instructions for deploying the Lambda CRUD API 
 - [Troubleshooting](#troubleshooting)
 
 ## Prerequisites
+
+### Source Code
+
+First, download the source code from GitHub:
+
+**Method 1: Git Clone (Recommended)**
+```bash
+git clone https://github.com/your-username/lambda-crud-api.git
+cd lambda-crud-api
+```
+
+**Method 2: Download ZIP**
+1. Visit: `https://github.com/your-username/lambda-crud-api`
+2. Click "Code" → "Download ZIP"
+3. Extract and navigate to the directory
 
 ### Required Tools
 
@@ -67,31 +82,52 @@ Your AWS user/role needs the following permissions:
 
 ## Quick Start
 
-### 1. Clone and Setup
+### 1. Download Source Code from GitHub
 
+**Option A: Using Git Clone (Recommended)**
 ```bash
-# Clone the repository
-git clone <repository-url>
+# Clone the repository from GitHub
+git clone https://github.com/your-username/lambda-crud-api.git
 cd lambda-crud-api
-
-# Install dependencies
-pip3 install -r requirements.txt
 ```
 
-### 2. Deploy with Automated Script
+**Option B: Download ZIP File**
+1. Go to the GitHub repository: `https://github.com/your-username/lambda-crud-api`
+2. Click the green "Code" button
+3. Select "Download ZIP"
+4. Extract the downloaded ZIP file
+5. Navigate to the extracted directory:
+   ```bash
+   cd lambda-crud-api
+   ```
+
+### 2. Setup Environment
 
 ```bash
-# Make deployment script executable
-chmod +x scripts/deploy.sh
+# Install Python dependencies
+pip3 install -r requirements.txt
 
-# Deploy to development environment
+# Verify Python version (should be 3.9 or later)
+python3 --version
+
+# Make deployment scripts executable (Linux/macOS)
+chmod +x scripts/deploy.sh
+```
+
+### 3. Deploy with Automated Script
+
+```bash
+# Deploy to development environment (default)
 ./scripts/deploy.sh
 
-# Deploy to production
+# Deploy to production in Tokyo region
 ./scripts/deploy.sh -e prod -r ap-northeast-1
+
+# Deploy with specific options
+./scripts/deploy.sh --environment staging --method terraform
 ```
 
-### 3. Test the API
+### 4. Test the API
 
 ```bash
 # Get the API URL from deployment output
@@ -595,5 +631,7 @@ For additional help:
 
 - Check the [API Documentation](API_DOCUMENTATION.md)
 - Review CloudWatch logs for detailed error information
-- Contact the development team
-- Submit issues to the project repository
+- Submit issues to the GitHub repository: `https://github.com/your-username/lambda-crud-api/issues`
+- Check existing issues and discussions on GitHub
+- Fork the repository and contribute improvements
+- Contact the development team through GitHub

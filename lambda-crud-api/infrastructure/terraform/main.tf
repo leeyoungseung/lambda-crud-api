@@ -9,40 +9,7 @@ terraform {
   }
 }
 
-# Variables
-variable "environment" {
-  description = "Environment name for resource naming"
-  type        = string
-  default     = "dev"
-  validation {
-    condition     = contains(["dev", "staging", "prod"], var.environment)
-    error_message = "Environment must be one of: dev, staging, prod."
-  }
-}
-
-variable "table_name" {
-  description = "DynamoDB table name for storing items"
-  type        = string
-  default     = "crud-api-items"
-}
-
-variable "lambda_runtime" {
-  description = "Python runtime version for Lambda functions"
-  type        = string
-  default     = "python3.12"
-}
-
-variable "aws_region" {
-  description = "AWS region for resources"
-  type        = string
-  default     = "us-east-1"
-}
-
-variable "project_name" {
-  description = "Project name for resource tagging"
-  type        = string
-  default     = "lambda-crud-api"
-}
+# Variables are defined in variables.tf
 
 # Local values
 locals {
@@ -280,38 +247,4 @@ resource "aws_lambda_function" "delete_lambda" {
   })
 }
 
-# Outputs
-output "dynamodb_table_name" {
-  description = "Name of the DynamoDB table"
-  value       = aws_dynamodb_table.items_table.name
-}
-
-output "dynamodb_table_arn" {
-  description = "ARN of the DynamoDB table"
-  value       = aws_dynamodb_table.items_table.arn
-}
-
-output "lambda_execution_role_arn" {
-  description = "ARN of the Lambda execution role"
-  value       = aws_iam_role.lambda_execution_role.arn
-}
-
-output "create_lambda_function_arn" {
-  description = "ARN of the Create Lambda function"
-  value       = aws_lambda_function.create_lambda.arn
-}
-
-output "read_lambda_function_arn" {
-  description = "ARN of the Read Lambda function"
-  value       = aws_lambda_function.read_lambda.arn
-}
-
-output "update_lambda_function_arn" {
-  description = "ARN of the Update Lambda function"
-  value       = aws_lambda_function.update_lambda.arn
-}
-
-output "delete_lambda_function_arn" {
-  description = "ARN of the Delete Lambda function"
-  value       = aws_lambda_function.delete_lambda.arn
-}
+# Outputs are defined in outputs.tf
