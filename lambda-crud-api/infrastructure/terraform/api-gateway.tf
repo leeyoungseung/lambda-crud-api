@@ -1,131 +1,198 @@
 # ==============================================
-# api-gateway.tf (fixed) - HTTP API (v2) → 4 Lambda routes
+# api-gateway.tf — API Gateway REST (v1) → Lambda proxy
 # ==============================================
+data "aws_region" "current" {}
 
-resource "aws_apigatewayv2_api" "http_api" {
-  name          = "crud-http-api-${var.environment}"
-  protocol_type = "HTTP"
-  tags          = local.common_tags
+resource "aws_api_gateway_rest_api" "crud_api" {
+  name        = "crud-rest-api-${var.environment}"
+  description = "CRUD REST API (Lambda proxy)"
+  endpoint_configuration { types = ["REGIONAL"] }
+  tags = local.common_tags
+}
+
+# Resources
+resource "aws_api_gateway_resource" "items" {
+  rest_api_id = aws_api_gateway_rest_api.crud_api.id
+  parent_id   = aws_api_gateway_rest_api.crud_api.root_resource_id
+  path_part   = "items"
+}
+
+resource "aws_api_gateway_resource" "item_id" {
+  rest_api_id = aws_api_gateway_rest_api.crud_api.id
+  parent_id   = aws_api_gateway_resource.items.id
+  path_part   = "{id}"
+}
+
+# Methods
+resource "aws_api_gateway_method" "post_items" {
+  rest_api_id   = aws_api_gateway_rest_api.crud_api.id
+  resource_id   = aws_api_gateway_resource.items.id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "get_item" {
+  rest_api_id   = aws_api_gateway_rest_api.crud_api.id
+  resource_id   = aws_api_gateway_resource.item_id.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "put_item" {
+  rest_api_id   = aws_api_gateway_rest_api.crud_api.id
+  resource_id   = aws_api_gateway_resource.item_id.id
+  http_method   = "PUT"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "delete_item" {
+  rest_api_id   = aws_api_gateway_rest_api.crud_api.id
+  resource_id   = aws_api_gateway_resource.item_id.id
+  http_method   = "DELETE"
+  authorization = "NONE"
 }
 
 # Integrations (Lambda proxy)
-resource "aws_apigatewayv2_integration" "create" {
-  api_id                 = aws_apigatewayv2_api.http_api.id
-  integration_type       = "AWS_PROXY"
-  integration_method     = "POST"
-  integration_uri        = aws_lambda_function.fn["create"].invoke_arn
-  payload_format_version = "2.0"
+resource "aws_api_gateway_integration" "post_items" {
+  rest_api_id             = aws_api_gateway_rest_api.crud_api.id
+  resource_id             = aws_api_gateway_resource.items.id
+  http_method             = aws_api_gateway_method.post_items.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.fn["create"].invoke_arn
 }
 
-resource "aws_apigatewayv2_integration" "read" {
-  api_id                 = aws_apigatewayv2_api.http_api.id
-  integration_type       = "AWS_PROXY"
-  integration_method     = "POST"
-  integration_uri        = aws_lambda_function.fn["read"].invoke_arn
-  payload_format_version = "2.0"
+resource "aws_api_gateway_integration" "get_item" {
+  rest_api_id             = aws_api_gateway_rest_api.crud_api.id
+  resource_id             = aws_api_gateway_resource.item_id.id
+  http_method             = aws_api_gateway_method.get_item.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.fn["read"].invoke_arn
 }
 
-resource "aws_apigatewayv2_integration" "update" {
-  api_id                 = aws_apigatewayv2_api.http_api.id
-  integration_type       = "AWS_PROXY"
-  integration_method     = "POST"
-  integration_uri        = aws_lambda_function.fn["update"].invoke_arn
-  payload_format_version = "2.0"
+resource "aws_api_gateway_integration" "put_item" {
+  rest_api_id             = aws_api_gateway_rest_api.crud_api.id
+  resource_id             = aws_api_gateway_resource.item_id.id
+  http_method             = aws_api_gateway_method.put_item.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.fn["update"].invoke_arn
 }
 
-resource "aws_apigatewayv2_integration" "delete" {
-  api_id                 = aws_apigatewayv2_api.http_api.id
-  integration_type       = "AWS_PROXY"
-  integration_method     = "POST"
-  integration_uri        = aws_lambda_function.fn["delete"].invoke_arn
-  payload_format_version = "2.0"
+resource "aws_api_gateway_integration" "delete_item" {
+  rest_api_id             = aws_api_gateway_rest_api.crud_api.id
+  resource_id             = aws_api_gateway_resource.item_id.id
+  http_method             = aws_api_gateway_method.delete_item.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.fn["delete"].invoke_arn
 }
 
-# Routes
-resource "aws_apigatewayv2_route" "create" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "POST /items"
-  target    = "integrations/${aws_apigatewayv2_integration.create.id}"
+# Deployment + Stage
+resource "aws_api_gateway_deployment" "this" {
+  rest_api_id = aws_api_gateway_rest_api.crud_api.id
+
+  triggers = {
+    redeploy_hash = sha1(jsonencode({
+      res = [aws_api_gateway_resource.items.id, aws_api_gateway_resource.item_id.id],
+      met = [aws_api_gateway_method.post_items.id, aws_api_gateway_method.get_item.id, aws_api_gateway_method.put_item.id, aws_api_gateway_method.delete_item.id],
+      int = [aws_api_gateway_integration.post_items.id, aws_api_gateway_integration.get_item.id, aws_api_gateway_integration.put_item.id, aws_api_gateway_integration.delete_item.id]
+    }))
+  }
+
+  lifecycle { create_before_destroy = true }
+
+  depends_on = [
+    aws_api_gateway_integration.post_items,
+    aws_api_gateway_integration.get_item,
+    aws_api_gateway_integration.put_item,
+    aws_api_gateway_integration.delete_item
+  ]
 }
 
-resource "aws_apigatewayv2_route" "read" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "GET /items/{id}"
-  target    = "integrations/${aws_apigatewayv2_integration.read.id}"
-}
+resource "aws_api_gateway_stage" "stage" {
+  rest_api_id   = aws_api_gateway_rest_api.crud_api.id
+  stage_name    = var.environment
+  deployment_id = aws_api_gateway_deployment.this.id
 
-resource "aws_apigatewayv2_route" "update" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "PUT /items/{id}"
-  target    = "integrations/${aws_apigatewayv2_integration.update.id}"
-}
-
-resource "aws_apigatewayv2_route" "delete" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "DELETE /items/{id}"
-  target    = "integrations/${aws_apigatewayv2_integration.delete.id}"
-}
-
-# Stage (auto-deploy)
-resource "aws_apigatewayv2_stage" "default" {
-  api_id      = aws_apigatewayv2_api.http_api.id
-  name        = "$default"
-  auto_deploy = true
-
-  # Access logs (optional) - comment out if you don't want CW logs
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.api_access.arn
     format = jsonencode({
-      requestId               = "$context.requestId",
-      ip                      = "$context.identity.sourceIp",
-      requestTime             = "$context.requestTime",
-      httpMethod              = "$context.httpMethod",
-      path                    = "$context.path",
-      routeKey                = "$context.routeKey",
-      status                  = "$context.status",
-      responseLength          = "$context.responseLength",
-      integrationErrorMessage = "$context.integrationErrorMessage"
+      requestId      = "$context.requestId",
+      ip             = "$context.identity.sourceIp",
+      requestTime    = "$context.requestTime",
+      httpMethod     = "$context.httpMethod",
+      path           = "$context.path",
+      status         = "$context.status",
+      protocol       = "$context.protocol",
+      responseLength = "$context.responseLength"
     })
   }
 
   tags = local.common_tags
 }
 
+# CloudWatch Logs for API
 resource "aws_cloudwatch_log_group" "api_access" {
-  name              = "/aws/apigwv2/crud-http-api-${var.environment}"
+  name              = "/aws/apigw/crud-rest-api-${var.environment}"
   retention_in_days = var.log_retention_days
   tags              = local.common_tags
 }
 
-# Lambda invoke permissions for API Gateway
-resource "aws_lambda_permission" "apigw_create" {
+# API Gateway account → CW Logs role
+resource "aws_iam_role" "apigw_cloudwatch_role" {
+  name = "apigw-cloudwatch-role-${var.environment}"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect    = "Allow",
+      Principal = { Service = "apigateway.amazonaws.com" },
+      Action    = "sts:AssumeRole"
+    }]
+  })
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "apigw_push_to_cw" {
+  role       = aws_iam_role.apigw_cloudwatch_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+}
+
+resource "aws_api_gateway_account" "account" {
+  cloudwatch_role_arn = aws_iam_role.apigw_cloudwatch_role.arn
+  depends_on          = [aws_iam_role_policy_attachment.apigw_push_to_cw]
+}
+
+# Lambda permissions for API Gateway
+resource "aws_lambda_permission" "allow_apigw_invoke_create" {
   statement_id  = "AllowAPIGWInvokeCreate"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.fn["create"].function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.http_api.execution_arn}/*/*"
+  source_arn    = "${aws_api_gateway_rest_api.crud_api.execution_arn}/*/*"
 }
 
-resource "aws_lambda_permission" "apigw_read" {
+resource "aws_lambda_permission" "allow_apigw_invoke_read" {
   statement_id  = "AllowAPIGWInvokeRead"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.fn["read"].function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.http_api.execution_arn}/*/*"
+  source_arn    = "${aws_api_gateway_rest_api.crud_api.execution_arn}/*/*"
 }
 
-resource "aws_lambda_permission" "apigw_update" {
+resource "aws_lambda_permission" "allow_apigw_invoke_update" {
   statement_id  = "AllowAPIGWInvokeUpdate"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.fn["update"].function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.http_api.execution_arn}/*/*"
+  source_arn    = "${aws_api_gateway_rest_api.crud_api.execution_arn}/*/*"
 }
 
-resource "aws_lambda_permission" "apigw_delete" {
+resource "aws_lambda_permission" "allow_apigw_invoke_delete" {
   statement_id  = "AllowAPIGWInvokeDelete"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.fn["delete"].function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.http_api.execution_arn}/*/*"
+  source_arn    = "${aws_api_gateway_rest_api.crud_api.execution_arn}/*/*"
 }
