@@ -162,6 +162,7 @@ resource "null_resource" "build" {
   }
 
   provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
     working_dir = path.module
     command = <<EOT
 set -euo pipefail
