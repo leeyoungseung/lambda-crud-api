@@ -275,7 +275,7 @@ def format_dynamodb_error(error) -> Dict[str, Any]:
     Returns:
         Formatted error response
     """
-    from dynamodb_client import DynamoDBError
+    from .dynamodb_client import DynamoDBError
     
     if isinstance(error, DynamoDBError):
         if error.error_code == "ITEM_NOT_FOUND":

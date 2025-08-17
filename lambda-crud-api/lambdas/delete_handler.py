@@ -9,11 +9,10 @@ import os
 from typing import Dict, Any
 
 # Add shared modules to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
 
-from validation import validate_item_id
-from dynamodb_client import delete_item, get_item, DynamoDBError
-from response_handler import (
+from shared.validation import validate_item_id
+from shared.dynamodb_client import delete_item, get_item, DynamoDBError
+from shared.response_handler import (
     success_response,
     not_found_response,
     extract_path_parameter,

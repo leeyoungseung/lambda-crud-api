@@ -1,1 +1,1 @@
-# Shared modules for Lambda CRUD API
+# package marker for shared

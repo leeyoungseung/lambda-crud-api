@@ -11,11 +11,10 @@ from datetime import datetime
 from typing import Dict, Any
 
 # Add shared modules to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
 
-from validation import validate_item_data, ITEM_SCHEMA
-from dynamodb_client import create_item, DynamoDBError
-from response_handler import (
+from shared.validation import validate_item_data, ITEM_SCHEMA
+from shared.dynamodb_client import create_item, DynamoDBError
+from shared.response_handler import (
     created_response,
     validation_error_response,
     parse_json_body,
