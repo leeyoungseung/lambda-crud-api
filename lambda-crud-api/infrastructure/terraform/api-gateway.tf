@@ -31,6 +31,13 @@ resource "aws_api_gateway_method" "post_items" {
   authorization = "NONE"
 }
 
+resource "aws_api_gateway_method" "get_items" {
+  rest_api_id   = aws_api_gateway_rest_api.crud_api.id
+  resource_id   = aws_api_gateway_resource.items.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
 resource "aws_api_gateway_method" "get_item" {
   rest_api_id   = aws_api_gateway_rest_api.crud_api.id
   resource_id   = aws_api_gateway_resource.item_id.id
@@ -60,6 +67,15 @@ resource "aws_api_gateway_integration" "post_items" {
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
   uri                     = aws_lambda_function.fn["create"].invoke_arn
+}
+
+resource "aws_api_gateway_integration" "get_items" {
+  rest_api_id             = aws_api_gateway_rest_api.crud_api.id
+  resource_id             = aws_api_gateway_resource.items.id
+  http_method             = aws_api_gateway_method.get_items.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.fn["read"].invoke_arn
 }
 
 resource "aws_api_gateway_integration" "get_item" {
@@ -96,8 +112,8 @@ resource "aws_api_gateway_deployment" "this" {
   triggers = {
     redeploy_hash = sha1(jsonencode({
       res = [aws_api_gateway_resource.items.id, aws_api_gateway_resource.item_id.id],
-      met = [aws_api_gateway_method.post_items.id, aws_api_gateway_method.get_item.id, aws_api_gateway_method.put_item.id, aws_api_gateway_method.delete_item.id],
-      int = [aws_api_gateway_integration.post_items.id, aws_api_gateway_integration.get_item.id, aws_api_gateway_integration.put_item.id, aws_api_gateway_integration.delete_item.id]
+      met = [aws_api_gateway_method.post_items.id, aws_api_gateway_method.get_items.id, aws_api_gateway_method.get_item.id, aws_api_gateway_method.put_item.id, aws_api_gateway_method.delete_item.id],
+      int = [aws_api_gateway_integration.post_items.id, aws_api_gateway_integration.get_items.id, aws_api_gateway_integration.get_item.id, aws_api_gateway_integration.put_item.id, aws_api_gateway_integration.delete_item.id]
     }))
   }
 
@@ -105,6 +121,7 @@ resource "aws_api_gateway_deployment" "this" {
 
   depends_on = [
     aws_api_gateway_integration.post_items,
+    aws_api_gateway_integration.get_items,
     aws_api_gateway_integration.get_item,
     aws_api_gateway_integration.put_item,
     aws_api_gateway_integration.delete_item

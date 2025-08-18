@@ -1,17 +1,7 @@
 #!/bin/bash
 
 # Lambda CRUD API Deployment Script
-# This script handles the complete deployment process including infrastructure and Lambda functions
-
-set -e  # Exit on any error
-
-# Default values
-ENVIRONMENT="dev"
-REGION="ap-northeast-1"
-SKIP_TESTS=false
-SKIP_INFRASTRUCTURE=false
-DEPLOYMENT_METHOD="terraform"  # or "cloudformation"
-FUNCTION=""
+set -euo pipefail
 
 # Colors for output
 RED='\033[0;31m'
@@ -20,45 +10,53 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Print colored output
-print_info() {
-    echo -e "${BLUE}ℹ️  $1${NC}"
+# Script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+TERRAFORM_DIR="$PROJECT_ROOT/infrastructure/terraform"
+
+# Default values
+ENVIRONMENT="dev"
+AWS_REGION="ap-northeast-1"
+SKIP_TESTS=false
+DESTROY=false
+
+# Function to print colored output
+print_status() {
+    echo -e "${BLUE}[INFO]${NC} $1"
 }
 
 print_success() {
-    echo -e "${GREEN}✅ $1${NC}"
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
 }
 
 print_warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
+    echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
 print_error() {
-    echo -e "${RED}❌ $1${NC}"
+    echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# Print usage information
-usage() {
+# Function to show usage
+show_usage() {
     cat << EOF
 Usage: $0 [OPTIONS]
 
-Deploy Lambda CRUD API to AWS
+Deploy Lambda CRUD API infrastructure and functions.
 
 OPTIONS:
-    -e, --environment ENV    Target environment (dev, staging, prod) [default: dev]
+    -e, --environment ENV    Environment to deploy (dev|staging|prod) [default: dev]
     -r, --region REGION      AWS region [default: ap-northeast-1]
-    -m, --method METHOD      Deployment method (terraform, cloudformation) [default: terraform]
-    -f, --function FUNC      Deploy specific function only (create, read, update, delete)
-    --skip-tests            Skip running tests before deployment
-    --skip-infrastructure   Skip infrastructure deployment
+    -t, --skip-tests         Skip running tests before deployment
+    -d, --destroy           Destroy infrastructure instead of deploying
     -h, --help              Show this help message
 
 EXAMPLES:
-    $0                                          # Deploy to dev environment
-    $0 -e prod -r ap-northeast-1              # Deploy to prod in Tokyo region
-    $0 -f create                               # Deploy only create function
-    $0 --skip-tests --skip-infrastructure      # Deploy only Lambda functions
-    $0 -m cloudformation                       # Use CloudFormation instead of Terraform
+    $0                      # Deploy to dev environment
+    $0 -e prod -r us-east-1 # Deploy to prod in us-east-1
+    $0 -d                   # Destroy dev environment
+    $0 --skip-tests         # Deploy without running tests
 
 EOF
 }
@@ -71,32 +69,24 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         -r|--region)
-            REGION="$2"
+            AWS_REGION="$2"
             shift 2
             ;;
-        -m|--method)
-            DEPLOYMENT_METHOD="$2"
-            shift 2
-            ;;
-        -f|--function)
-            FUNCTION="$2"
-            shift 2
-            ;;
-        --skip-tests)
+        -t|--skip-tests)
             SKIP_TESTS=true
             shift
             ;;
-        --skip-infrastructure)
-            SKIP_INFRASTRUCTURE=true
+        -d|--destroy)
+            DESTROY=true
             shift
             ;;
         -h|--help)
-            usage
+            show_usage
             exit 0
             ;;
         *)
             print_error "Unknown option: $1"
-            usage
+            show_usage
             exit 1
             ;;
     esac
@@ -108,78 +98,34 @@ if [[ ! "$ENVIRONMENT" =~ ^(dev|staging|prod)$ ]]; then
     exit 1
 fi
 
-# Validate deployment method
-if [[ ! "$DEPLOYMENT_METHOD" =~ ^(terraform|cloudformation)$ ]]; then
-    print_error "Invalid deployment method: $DEPLOYMENT_METHOD. Must be terraform or cloudformation."
-    exit 1
-fi
-
-# Get script directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-
-print_info "Lambda CRUD API Deployment"
-print_info "Environment: $ENVIRONMENT"
-print_info "Region: $REGION"
-print_info "Method: $DEPLOYMENT_METHOD"
-echo "----------------------------------------"
+print_status "Starting deployment for environment: $ENVIRONMENT in region: $AWS_REGION"
 
 # Check prerequisites
 check_prerequisites() {
-    print_info "Checking prerequisites..."
+    print_status "Checking prerequisites..."
     
-    # Check if virtual environment is activated
-    if [[ -z "$VIRTUAL_ENV" ]]; then
-        print_warning "Python virtual environment not detected."
-        print_info "It's recommended to use a virtual environment:"
-        print_info "  python3 -m venv venv"
-        print_info "  source venv/bin/activate"
-        print_info "  pip install -r requirements.txt"
-        echo ""
-        read -p "Continue without virtual environment? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            print_info "Please activate virtual environment and try again."
-            exit 1
-        fi
-    else
-        print_success "Virtual environment detected: $VIRTUAL_ENV"
-    fi
-    
-    # Check AWS CLI
+    # Check if AWS CLI is installed and configured
     if ! command -v aws &> /dev/null; then
-        print_error "AWS CLI not found. Please install AWS CLI."
+        print_error "AWS CLI is not installed. Please install it first."
         exit 1
     fi
     
     # Check AWS credentials
     if ! aws sts get-caller-identity &> /dev/null; then
-        print_error "AWS credentials not configured. Please run 'aws configure'."
+        print_error "AWS credentials not configured or invalid."
         exit 1
     fi
     
-    # Check Python
+    # Check if Terraform is installed
+    if ! command -v terraform &> /dev/null; then
+        print_error "Terraform is not installed. Please install it first."
+        exit 1
+    fi
+    
+    # Check if Python is installed
     if ! command -v python3 &> /dev/null; then
-        print_error "Python 3 not found. Please install Python 3."
+        print_error "Python 3 is not installed. Please install it first."
         exit 1
-    fi
-    
-    # Check boto3 availability
-    if ! python3 -c "import boto3" &> /dev/null; then
-        print_error "boto3 not found. Please install dependencies:"
-        print_error "  pip install -r requirements.txt"
-        exit 1
-    fi
-    
-    # Check deployment method specific tools
-    if [[ "$DEPLOYMENT_METHOD" == "terraform" ]]; then
-        if ! command -v terraform &> /dev/null; then
-            print_error "Terraform not found. Please install Terraform."
-            exit 1
-        fi
-    elif [[ "$DEPLOYMENT_METHOD" == "cloudformation" ]]; then
-        # AWS CLI is sufficient for CloudFormation
-        :
     fi
     
     print_success "Prerequisites check passed"
@@ -187,247 +133,134 @@ check_prerequisites() {
 
 # Run tests
 run_tests() {
-    if [[ "$SKIP_TESTS" == true ]]; then
-        print_warning "Skipping tests"
+    if [[ "$SKIP_TESTS" == "true" ]]; then
+        print_warning "Skipping tests as requested"
         return 0
     fi
     
-    print_warning "Skipping tests due to test environment issues"
-    print_info "Tests need to be fixed but deployment can proceed"
-    return 0
+    print_status "Running tests..."
+    cd "$PROJECT_ROOT"
     
-    # Original test code (commented out until tests are fixed)
-    # print_info "Running tests..."
-    # cd "$PROJECT_ROOT"
-    # if command -v pytest &> /dev/null; then
-    #     if python3 -m pytest tests/ -v; then
-    #         print_success "All tests passed"
-    #     else
-    #         print_error "Tests failed"
-    #         exit 1
-    #     fi
-    # else
-    #     print_warning "pytest not found, skipping tests"
-    # fi
+    # Check if virtual environment exists
+    if [[ ! -d "venv" ]]; then
+        print_status "Creating virtual environment..."
+        python3 -m venv venv
+    fi
+    
+    # Activate virtual environment
+    source venv/bin/activate
+    
+    # Install dependencies
+    if [[ -f "requirements.txt" ]]; then
+        print_status "Installing dependencies..."
+        pip install -r requirements.txt
+    fi
+    
+    # Install test dependencies
+    pip install pytest pytest-cov moto[dynamodb] boto3
+    
+    # Run tests
+    if [[ -d "tests" ]]; then
+        print_status "Running unit tests..."
+        python -m pytest tests/ -v --cov=shared --cov=lambdas --cov-report=term-missing
+        
+        if [[ $? -ne 0 ]]; then
+            print_error "Tests failed. Deployment aborted."
+            exit 1
+        fi
+        print_success "All tests passed"
+    else
+        print_warning "No tests directory found, skipping tests"
+    fi
+    
+    deactivate
 }
 
-# Deploy infrastructure using Terraform
-deploy_terraform_infrastructure() {
-    print_info "Deploying infrastructure with Terraform..."
+# Deploy infrastructure
+deploy_infrastructure() {
+    print_status "Deploying infrastructure..."
+    cd "$TERRAFORM_DIR"
     
-    cd "$PROJECT_ROOT/infrastructure/terraform"
+    # Initialize Terraform
+    print_status "Initializing Terraform..."
+    terraform init
+    
+    # Create workspace if it doesn't exist
+    if ! terraform workspace list | grep -q "$ENVIRONMENT"; then
+        print_status "Creating Terraform workspace: $ENVIRONMENT"
+        terraform workspace new "$ENVIRONMENT"
+    else
+        print_status "Selecting Terraform workspace: $ENVIRONMENT"
+        terraform workspace select "$ENVIRONMENT"
+    fi
+    
+    # Plan deployment
+    print_status "Planning deployment..."
+    terraform plan \
+        -var="environment=$ENVIRONMENT" \
+        -var="aws_region=$AWS_REGION" \
+        -out="tfplan"
+    
+    # Apply deployment
+    print_status "Applying deployment..."
+    terraform apply "tfplan"
+    
+    # Clean up plan file
+    rm -f tfplan
+    
+    print_success "Infrastructure deployment completed"
+    
+    # Show outputs
+    print_status "Deployment outputs:"
+    terraform output
+}
+
+# Destroy infrastructure
+destroy_infrastructure() {
+    print_warning "This will destroy all infrastructure for environment: $ENVIRONMENT"
+    read -p "Are you sure you want to continue? (yes/no): " -r
+    
+    if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
+        print_status "Destruction cancelled"
+        exit 0
+    fi
+    
+    print_status "Destroying infrastructure..."
+    cd "$TERRAFORM_DIR"
     
     # Initialize Terraform
     terraform init
     
-    # Create terraform.tfvars file
-    cat > terraform.tfvars << EOF
-environment = "$ENVIRONMENT"
-aws_region = "$REGION"
-EOF
-    
-    # Plan deployment
-    terraform plan -var-file=terraform.tfvars
-    
-    # Apply deployment
-    if terraform apply -var-file=terraform.tfvars -auto-approve; then
-        print_success "Infrastructure deployed successfully"
+    # Select workspace
+    if terraform workspace list | grep -q "$ENVIRONMENT"; then
+        terraform workspace select "$ENVIRONMENT"
     else
-        print_error "Infrastructure deployment failed"
+        print_error "Workspace $ENVIRONMENT does not exist"
         exit 1
     fi
+    
+    # Destroy infrastructure
+    terraform destroy \
+        -var="environment=$ENVIRONMENT" \
+        -var="aws_region=$AWS_REGION" \
+        -auto-approve
+    
+    print_success "Infrastructure destroyed"
 }
 
-# Deploy infrastructure using CloudFormation
-deploy_cloudformation_infrastructure() {
-    print_info "Deploying infrastructure with CloudFormation..."
-    
-    STACK_NAME="lambda-crud-api-$ENVIRONMENT"
-    TEMPLATE_FILE="$PROJECT_ROOT/infrastructure/cloudformation-template.yaml"
-    
-    # Check if stack exists
-    if aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "$REGION" &> /dev/null; then
-        print_info "Updating existing CloudFormation stack..."
-        aws cloudformation update-stack \
-            --stack-name "$STACK_NAME" \
-            --template-body "file://$TEMPLATE_FILE" \
-            --parameters ParameterKey=Environment,ParameterValue="$ENVIRONMENT" \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --region "$REGION"
-    else
-        print_info "Creating new CloudFormation stack..."
-        aws cloudformation create-stack \
-            --stack-name "$STACK_NAME" \
-            --template-body "file://$TEMPLATE_FILE" \
-            --parameters ParameterKey=Environment,ParameterValue="$ENVIRONMENT" \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --region "$REGION"
-    fi
-    
-    # Wait for stack operation to complete
-    print_info "Waiting for CloudFormation stack operation to complete..."
-    aws cloudformation wait stack-update-complete --stack-name "$STACK_NAME" --region "$REGION" 2>/dev/null || \
-    aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME" --region "$REGION"
-    
-    print_success "Infrastructure deployed successfully"
-}
-
-# Deploy API Gateway using CloudFormation
-deploy_api_gateway() {
-    print_info "Deploying API Gateway..."
-    
-    STACK_NAME="lambda-crud-api-gateway-$ENVIRONMENT"
-    TEMPLATE_FILE="$PROJECT_ROOT/infrastructure/api-gateway-cloudformation.yaml"
-    
-    # Get Lambda function ARNs from infrastructure stack
-    INFRA_STACK_NAME="lambda-crud-api-$ENVIRONMENT"
-    
-    CREATE_LAMBDA_ARN=$(aws cloudformation describe-stacks \
-        --stack-name "$INFRA_STACK_NAME" \
-        --region "$REGION" \
-        --query 'Stacks[0].Outputs[?OutputKey==`CreateLambdaFunctionArn`].OutputValue' \
-        --output text)
-    
-    READ_LAMBDA_ARN=$(aws cloudformation describe-stacks \
-        --stack-name "$INFRA_STACK_NAME" \
-        --region "$REGION" \
-        --query 'Stacks[0].Outputs[?OutputKey==`ReadLambdaFunctionArn`].OutputValue' \
-        --output text)
-    
-    UPDATE_LAMBDA_ARN=$(aws cloudformation describe-stacks \
-        --stack-name "$INFRA_STACK_NAME" \
-        --region "$REGION" \
-        --query 'Stacks[0].Outputs[?OutputKey==`UpdateLambdaFunctionArn`].OutputValue' \
-        --output text)
-    
-    DELETE_LAMBDA_ARN=$(aws cloudformation describe-stacks \
-        --stack-name "$INFRA_STACK_NAME" \
-        --region "$REGION" \
-        --query 'Stacks[0].Outputs[?OutputKey==`DeleteLambdaFunctionArn`].OutputValue' \
-        --output text)
-    
-    # Deploy API Gateway stack
-    if aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "$REGION" &> /dev/null; then
-        print_info "Updating API Gateway stack..."
-        aws cloudformation update-stack \
-            --stack-name "$STACK_NAME" \
-            --template-body "file://$TEMPLATE_FILE" \
-            --parameters \
-                ParameterKey=Environment,ParameterValue="$ENVIRONMENT" \
-                ParameterKey=CreateLambdaFunctionArn,ParameterValue="$CREATE_LAMBDA_ARN" \
-                ParameterKey=ReadLambdaFunctionArn,ParameterValue="$READ_LAMBDA_ARN" \
-                ParameterKey=UpdateLambdaFunctionArn,ParameterValue="$UPDATE_LAMBDA_ARN" \
-                ParameterKey=DeleteLambdaFunctionArn,ParameterValue="$DELETE_LAMBDA_ARN" \
-            --capabilities CAPABILITY_IAM \
-            --region "$REGION"
-    else
-        print_info "Creating API Gateway stack..."
-        aws cloudformation create-stack \
-            --stack-name "$STACK_NAME" \
-            --template-body "file://$TEMPLATE_FILE" \
-            --parameters \
-                ParameterKey=Environment,ParameterValue="$ENVIRONMENT" \
-                ParameterKey=CreateLambdaFunctionArn,ParameterValue="$CREATE_LAMBDA_ARN" \
-                ParameterKey=ReadLambdaFunctionArn,ParameterValue="$READ_LAMBDA_ARN" \
-                ParameterKey=UpdateLambdaFunctionArn,ParameterValue="$UPDATE_LAMBDA_ARN" \
-                ParameterKey=DeleteLambdaFunctionArn,ParameterValue="$DELETE_LAMBDA_ARN" \
-            --capabilities CAPABILITY_IAM \
-            --region "$REGION"
-    fi
-    
-    # Wait for stack operation to complete
-    print_info "Waiting for API Gateway deployment to complete..."
-    aws cloudformation wait stack-update-complete --stack-name "$STACK_NAME" --region "$REGION" 2>/dev/null || \
-    aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME" --region "$REGION"
-    
-    print_success "API Gateway deployed successfully"
-}
-
-# Package Lambda functions
-package_lambda_functions() {
-    print_info "Packaging Lambda functions..."
-    
-    cd "$PROJECT_ROOT"
-    
-    # Use Python packaging script
-    PYTHON_ARGS="--environment $ENVIRONMENT --region $REGION"
-    
-    if [[ -n "$FUNCTION" ]]; then
-        PYTHON_ARGS="$PYTHON_ARGS --function $FUNCTION"
-    fi
-    
-    # Use python instead of python3 when in virtual environment
-    PYTHON_CMD="python3"
-    if [[ -n "$VIRTUAL_ENV" ]]; then
-        PYTHON_CMD="python"
-    fi
-    
-    if $PYTHON_CMD scripts/deploy.py $PYTHON_ARGS; then
-        print_success "Lambda functions packaged successfully"
-    else
-        print_error "Lambda function packaging failed"
-        print_error "Make sure virtual environment is activated and dependencies are installed:"
-        print_error "  source venv/bin/activate"
-        print_error "  pip install -r requirements.txt"
-        exit 1
-    fi
-}
-
-# Get API Gateway URL
-get_api_url() {
-    if [[ "$DEPLOYMENT_METHOD" == "cloudformation" ]]; then
-        STACK_NAME="lambda-crud-api-gateway-$ENVIRONMENT"
-        API_URL=$(aws cloudformation describe-stacks \
-            --stack-name "$STACK_NAME" \
-            --region "$REGION" \
-            --query 'Stacks[0].Outputs[?OutputKey==`ApiGatewayUrl`].OutputValue' \
-            --output text 2>/dev/null || echo "")
-    elif [[ "$DEPLOYMENT_METHOD" == "terraform" ]]; then
-        cd "$PROJECT_ROOT/infrastructure/terraform"
-        API_URL=$(terraform output -raw api_gateway_url 2>/dev/null || echo "")
-    fi
-    
-    if [[ -n "$API_URL" ]]; then
-        print_success "API URL: $API_URL"
-    else
-        print_warning "Could not retrieve API URL"
-    fi
-}
-
-# Main deployment process
+# Main execution
 main() {
     check_prerequisites
-    run_tests
     
-    if [[ "$SKIP_INFRASTRUCTURE" != true ]]; then
-        if [[ "$DEPLOYMENT_METHOD" == "terraform" ]]; then
-            deploy_terraform_infrastructure
-        elif [[ "$DEPLOYMENT_METHOD" == "cloudformation" ]]; then
-            deploy_cloudformation_infrastructure
-            deploy_api_gateway
-        fi
-    fi
-    
-    package_lambda_functions
-    get_api_url
-    
-    echo "----------------------------------------"
-    print_success "🎉 Deployment completed successfully!"
-    print_info "Environment: $ENVIRONMENT"
-    print_info "Region: $REGION"
-    
-    if [[ -n "$API_URL" ]]; then
-        print_info "API URL: $API_URL"
-        echo ""
-        print_info "Example API calls:"
-        echo "  # Create item:"
-        echo "  curl -X POST $API_URL/items -H 'Content-Type: application/json' -d '{\"name\":\"Test Item\",\"price\":99.99,\"quantity\":10,\"is_active\":true}'"
-        echo ""
-        echo "  # Get all items:"
-        echo "  curl $API_URL/items"
-        echo ""
-        echo "  # Get specific item:"
-        echo "  curl $API_URL/items/{item-id}"
+    if [[ "$DESTROY" == "true" ]]; then
+        destroy_infrastructure
+    else
+        run_tests
+        deploy_infrastructure
+        
+        print_success "Deployment completed successfully!"
+        print_status "API Gateway URL will be shown in the Terraform outputs above"
+        print_status "You can test the API endpoints using the examples in the docs/ directory"
     fi
 }
 
